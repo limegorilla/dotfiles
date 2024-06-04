@@ -1,0 +1,12 @@
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+[commit]
+	gpgsign = true
+[user]
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDb/9H2jynpeg94MZOoqC99E7AfqV3BTH5dy/tutc1Gx
+	name = Liam Doyle
+	email = liamdoyle@limegorilla.co.uk
+[core]
+	editor = vim

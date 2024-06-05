@@ -10,3 +10,5 @@
 	email = liamdoyle@limegorilla.co.uk
 [core]
 	editor = vim
+[pull]
+	rebase = false

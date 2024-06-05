@@ -5,6 +5,3 @@
 [submodule "dotbot-brew"]
 	path = dotbot-brew
 	url = https://github.com/d12frosted/dotbot-brew.git
-[submodule ".oh-my-zsh/themes/powerlevel10k"]
-	path = .oh-my-zsh/themes/powerlevel10k
-	url = https://github.com/romkatv/powerlevel10k.git

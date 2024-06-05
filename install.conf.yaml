@@ -1,4 +1,16 @@
-- clean: ['~']
+- defaults:
+    link:
+      create: true
+      relink: true
+    shell:
+      stderr: true
+
+- clean: ['~', '~/.oh-my-zsh/themes/powerlevel10k']
+
+- shell:
+  - [sh pre-install.sh, Running pre installation script]
+  - [brew bundle, Installing Homebrew formulas from Brewfile]
+  - [git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ohmyzsh/themes/powerlevel10k, Installing powerlevel10k theme]
 
 - link:
     ~/.gitconfig: gitconfig
@@ -7,5 +19,8 @@
         create: true
     ~/.zprofile: zprofile
     ~/.zshrc: zshrc
-
-
+    ~/.Brewfile: Brewfile
+    ~/.gitignore_global: gitignore_global
+    ~/.oh-my-zsh/themes/powerlevel10k: ohmyzsh/themes/powerlevel10k/
+    ~/.p10k.zsh: p10k.zsh
+    # ~/.vscode/: vscode/

@@ -22,6 +22,14 @@ else
   upgrade_oh_my_zsh
 fi
 
+# Check if ~/.oh-my-zsh/themes/powerlevel10k exists
+if [ ! -d "$OMZDIR/themes/powerlevel10k" ]; then
+  echo 'Installing powerlevel10k theme'
+  git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$OMZDIR/themes/powerlevel10k"
+else
+  echo 'powerlevel10k theme already installed'
+fi
+
 # Check if Mac-CLI is installed
 if [ ! -f "which mac" ]; then
     echo 'Installing Mac-CLI'

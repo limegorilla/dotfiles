@@ -17,10 +17,12 @@
         create: true
     ~/.zprofile: zprofile
     ~/.zshrc: zshrc
-    # ~/.Brewfile: Brewfile
+    ~/.Brewfile: Brewfile
     ~/.gitignore_global: gitignore_global
     ~/.p10k.zsh: p10k.zsh
-    # ~/.vscode/: vscode/
+    ~/.mackup.cfg: mackup.cfg
+    ~/.config/gh: config/gh/
+    ~/.config/mackup: config/mackup/
 
 - defaults:
     brewfile:

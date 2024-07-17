@@ -1,0 +1,18 @@
+# This is Git's per-user configuration file.
+[user]
+# Please adapt and uncomment the following lines:
+	name = Liam Doyle
+	email = liamdoyle@limegorilla.co.uk
+	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDb/9H2jynpeg94MZOoqC99E7AfqV3BTH5dy/tutc1Gx
+
+[gpg]
+	format = ssh
+
+[gpg "ssh"]
+	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+[commit]
+	gpgsign = true
+[core]
+	editor = nvim
+[pull]
+	rebase = false 

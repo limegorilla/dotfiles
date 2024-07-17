@@ -1,16 +1,23 @@
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
+# ---------------------------------------------------------------------------------------------------------------------
+# Powerlevel10k - Instant Prompt
+# ---------------------------------------------------------------------------------------------------------------------
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
 
-# Enables Homebrew
+# ---------------------------------------------------------------------------------------------------------------------
+# Homebrew
+# ---------------------------------------------------------------------------------------------------------------------
 if [[ -f "/opt/homebrew/bin/brew" ]] then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
+export HOMEBREW_CASK_OPTS=--no-quarantine
 
-# Set the directory we want to store zinit and plugins
+# ---------------------------------------------------------------------------------------------------------------------
+# Zinit
+# ---------------------------------------------------------------------------------------------------------------------
 ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 
 # Download Zinit, if it's not there yet
@@ -19,7 +26,9 @@ if [ ! -d "$ZINIT_HOME" ]; then
    git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
 fi
 
-# Source/Load zinit
+# ---------------------------------------------------------------------------------------------------------------------
+# Zinit - Source & Plugins
+# ---------------------------------------------------------------------------------------------------------------------
 source "${ZINIT_HOME}/zinit.zsh"
 
 # Add in Powerlevel10k
@@ -41,16 +50,14 @@ autoload -Uz compinit && compinit
 
 zinit cdreplay -q
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+# ---------------------------------------------------------------------------------------------------------------------
+# Powerlevel10k - Configuration
+# ---------------------------------------------------------------------------------------------------------------------
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# Keybindings
-# bindkey -e
-# bindkey '^p' history-search-backward
-# bindkey '^n' history-search-forward
-# bindkey '^[w' kill-region
-
-# History
+# ---------------------------------------------------------------------------------------------------------------------
+# Zshell settings
+# ---------------------------------------------------------------------------------------------------------------------
 HISTSIZE=5000
 HISTFILE=~/.zsh_history
 SAVEHIST=$HISTSIZE
@@ -63,21 +70,43 @@ setopt hist_save_no_dups
 setopt hist_ignore_dups
 setopt hist_find_no_dups
 
+# ---------------------------------------------------------------------------------------------------------------------
 # Completion styling
+# ---------------------------------------------------------------------------------------------------------------------
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
 zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
 zstyle ':completion:*' menu no
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color $realpath'
 zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'
 
+# ---------------------------------------------------------------------------------------------------------------------
 # Aliases
+# ---------------------------------------------------------------------------------------------------------------------
 alias ls='ls --color'
 alias vim='nvim'
 alias c='clear'
 
-# Shell integrations
+# ---------------------------------------------------------------------------------------------------------------------
+# Shell Intergrations
+# ---------------------------------------------------------------------------------------------------------------------
 eval "$(fzf --zsh)"
 eval "$(zoxide init --cmd cd zsh)"
 
-# Orbstack command-line tools and integration
+# ---------------------------------------------------------------------------------------------------------------------
+# Chezmoi
+# ---------------------------------------------------------------------------------------------------------------------
+command -v chezmoi >/dev/null && . <(chezmoi completion zsh)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Orbstack
+# ---------------------------------------------------------------------------------------------------------------------
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Volta
+# ---------------------------------------------------------------------------------------------------------------------
+export VOLTA_HOME="$HOME/.volta"
+export PATH="$VOLTA_HOME/bin:$PATH"
+
+# https://github.com/volta-cli/volta/issues/927
+volta-migrate --no-create 1>/dev/null 

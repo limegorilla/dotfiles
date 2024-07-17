@@ -1,0 +1,101 @@
+#!/bin/bash
+{{ if (eq .chezmoi.os "darwin") -}}
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Amphetamine settings
+# ---------------------------------------------------------------------------------------------------------------------
+killall Amphetamine
+# Start session as soon as Amphetamine starts
+defaults write com.if.Amphetamine "Start Session At Launch" -bool true
+
+# # ---------------------------------------------------------------------------------------------------------------------
+# # Docker settings
+# # ---------------------------------------------------------------------------------------------------------------------
+# # Disable automatic updates
+# killall Docker
+# defaults write com.docker.docker SUAutomaticallyUpdate -bool false
+# defaults write com.docker.docker SUEnableAutomaticChecks -bool false
+# open -a Docker
+
+# ---------------------------------------------------------------------------------------------------------------------
+# GPG settings
+# ---------------------------------------------------------------------------------------------------------------------
+gpg-connect-agent reloadagent /bye
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Homebrew settings
+# ---------------------------------------------------------------------------------------------------------------------
+# https://github.com/Homebrew/homebrew-autoupdate/issues/10
+mkdir -p ~/Library/LaunchAgents
+# https://github.com/Homebrew/homebrew-autoupdate/issues/14
+sudo touch ~/Library/LaunchAgents/com.github.domt4.homebrew-autoupdate.plist
+sudo chown $(whoami) ~/Library/LaunchAgents/com.github.domt4.homebrew-autoupdate.plist
+# Auto-upgrade apps every week
+echo "Deleting any autoupdate plist before enabling autoupdate"
+brew autoupdate delete && brew autoupdate start 604800 --upgrade
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Mail settings
+# ---------------------------------------------------------------------------------------------------------------------
+killall Mail
+# Copy email addresses as `foo@example.com` instead of `Foo Bar <foo@example.com>` in Mail.app
+defaults write com.apple.mail AddressesIncludeNameOnPasteboard -bool false
+
+# ---------------------------------------------------------------------------------------------------------------------
+# OneDrive settings
+# ---------------------------------------------------------------------------------------------------------------------
+# iPhone backups are located in OneDrive
+# TODO: Add in Sharepoint shares
+# mkdir -p ~/Library/Application\ Support/MobileSync
+# ln -s ~/Library/CloudStorage/OneDrive-Personal/iPhone\ backup ~/Library/Application\ Support/MobileSync/Backup
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Safari settings
+# ---------------------------------------------------------------------------------------------------------------------
+killall Safari
+# Privacy: don’t send search queries to Apple
+defaults write com.apple.Safari UniversalSearchEnabled -bool false
+defaults write com.apple.Safari SuppressSearchSuggestions -bool true
+# Privacy: Enable “Do Not Track”
+defaults write com.apple.Safari SendDoNotTrackHTTPHeader -bool true
+# Disable AutoFill
+defaults write com.apple.Safari AutoFillFromAddressBook -bool false
+defaults write com.apple.Safari AutoFillPasswords -bool false
+defaults write com.apple.Safari AutoFillCreditCardData -bool false
+defaults write com.apple.Safari AutoFillMiscellaneousForms -bool false
+# Update extensions automatically
+defaults write com.apple.Safari InstallExtensionUpdatesAutomatically -bool true
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Terminal settings
+# ---------------------------------------------------------------------------------------------------------------------
+# Make sure Terminal is using the Basic profile
+defaults write com.apple.Terminal "Default Window Settings" -string Basic
+defaults write com.apple.Terminal "Startup Window Settings" -string Basic
+# Only use UTF-8
+defaults write com.apple.terminal StringEncodings -array 4
+# Set font preferences
+# To get the current font name, use: osascript -e "tell application \"Terminal\" to get the font name of window 1"
+osascript -e "tell application \"Terminal\" to set font name of settings set \"Basic\" to \"MesloLGLNerdFontComplete-Regular\""
+osascript -e "tell application \"Terminal\" to set font size of settings set \"Basic\" to 18"
+# https://docs.brew.sh/Shell-Completion#configuring-completions-in-zsh
+chmod -R go-w "$(brew --prefix)/share"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# TextEdit settings
+# ---------------------------------------------------------------------------------------------------------------------
+killall TextEdit
+# Set default TextEdit document format as plain text
+defaults write com.apple.TextEdit "RichText" -bool "false"
+# Open and save files as UTF-8
+defaults write com.apple.TextEdit PlainTextEncoding -int 4
+defaults write com.apple.TextEdit PlainTextEncodingForWrite -int 4
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Make chezmoi use Git with SSH
+# ---------------------------------------------------------------------------------------------------------------------
+cd "{{ .chezmoi.sourceDir }}"
+CHEZMOI_SSH_URL=$(git remote get-url origin | sed -Ene's#https://([^/]*)/([^/]*/.*.git)#git@\1:\2#p')
+[[ -z $CHEZMOI_SSH_URL ]] || git remote set-url origin $CHEZMOI_SSH_URL
+
+{{ end -}}

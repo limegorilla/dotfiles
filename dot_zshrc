@@ -108,5 +108,9 @@ source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
 
+if [[ $(volta list) =~ "npm" && $(which npm) =~ "not found" ]]; then
+    echo "\nWARNING: Volta link to npm is broken. Run \`volta setup\` to fix."
+fi
+
 # https://github.com/volta-cli/volta/issues/927
-volta-migrate --no-create 1>/dev/null 
+volta setup

@@ -78,3 +78,6 @@ alias c='clear'
 # Shell integrations
 eval "$(fzf --zsh)"
 eval "$(zoxide init --cmd cd zsh)"
+
+# Orbstack command-line tools and integration
+source ~/.orbstack/shell/init.zsh 2>/dev/null || :

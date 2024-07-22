@@ -47,5 +47,4 @@ mas "Pages", id: 409201541
 mas "Playgrounds", id: 1496833156
 mas "Reeder", id: 1529448980
 mas "Speediness", id: 1596706466
-mas "Xcode", id: 497799835
 mas "WhatsApp", id: 310633997

@@ -5,6 +5,8 @@
 
 # Force System prefrences to quit
 osascript -e 'tell application "System Preferences" to quit'
+# Source dock functions
+source "./dock_operations.sh"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Global settings
@@ -32,7 +34,7 @@ defaults write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
 ! grep -q pam_tid.so /etc/pam.d/sudo && sudo gsed -i '2iauth        sufficient     pam_tid.so' /etc/pam.d/sudo
 # Ensure Secure Keyboard Entry in Terminal is enabled
 defaults write -app Terminal SecureKeyboardEntry -bool true
-defaults write -app iTerm2 SecureKeyboardEntry -bool true
+defaults write -app iTerm SecureKeyboardEntry -bool true
 
 # ---------------------------------------------------------------------------------------------------------------------
 # AuthorizationDB settings
@@ -63,14 +65,27 @@ defaults write com.apple.dock launchanim -bool true
 defaults write com.apple.dock show-process-indicators -bool true
 # Don’t show recent applications in Dock
 defaults write com.apple.dock show-recents -bool false
-# Clear Dock of all default icons and set my own
-defaults write com.apple.dock persistent-others -array
-defaults write com.apple.dock persistent-apps -array\
- '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/Arc.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'\
- '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/System/Applications/Mail.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'\
- '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/Applications/Visual Studio Code.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'\
- '<dict><key>tile-data</key><dict><key>file-data</key><dict><key>_CFURLString</key><string>/System/Applications/Utilities/Terminal.app</string><key>_CFURLStringType</key><integer>0</integer></dict></dict></dict>'\
-
+# Clear Dock
+clear_dock
+# Declare apps to set to dock
+declare -a apps=(
+    '/Applications/Arc.app'
+    '/Applications/Microsoft Outlook.app'
+    '/System/Cryptexes/App/System/Applications/Safari.app'
+    '/System/Applications/Music.app'
+    '/System/Applications/Calendar.app'
+    '/Applications/iTerm.app'
+    '/Applications/TablePlus.app'
+    '/Applications/Visual Studio Code.app'
+);
+# Add apps to dock
+for app in "${apps[@]}"; do
+    add_app_to_dock "$app"
+done
+# Add folders to dock (not done in an array as I need to pass options to add_folder_to_dock)
+add_folder_to_dock "$HOME/Downloads" --arrangement 3 --displayAs 0 --showAs 1
+add_folder_to_dock "$HOME/Developer" --arrangement 1 --displayAs 1 --showAs 2
+# Kill Dock
 killall Dock
 
 # ---------------------------------------------------------------------------------------------------------------------

@@ -4,9 +4,6 @@
 # Close App Store apps in case this script updates them (this should be anything mas installs from the brewfile)
 killall "1Password for Safari" "Amphetamine" "Apple Configurator" "Broadcasts" "Codye" "Compressor" "Craft" "Final Cut Pro" "GarageBand" "iMovie" "Keynote" "Logic Pro" "Microsoft Excel" "Microsoft Word" "Motion" "MusicHarbor" "Numbers" "OneDrive" "Pages" "Playgrounds" "Reeder" "Speediness" "Xcode" "WhatsApp" 
 
-# Disable quarantine for casks
-export HOMEBREW_CASK_OPTS=--no-quarantine
-
 brew bundle
 
 {{ end -}}

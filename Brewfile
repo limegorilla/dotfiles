@@ -1,4 +1,5 @@
 tap "homebrew/bundle"
+tap "mongodb/brew"
 tap "planetscale/tap"
 tap "supabase/tap"
 brew "bash-completion"
@@ -8,6 +9,7 @@ brew "cocoapods"
 brew "deno"
 brew "fzf"
 brew "gh"
+brew "git-delta"
 brew "mactop"
 brew "mas"
 brew "mysql-client"
@@ -18,6 +20,7 @@ brew "tmux"
 brew "volta"
 brew "wget"
 brew "zoxide"
+brew "mongodb/brew/mongodb-database-tools"
 brew "planetscale/tap/pscale"
 brew "supabase/tap/supabase"
 cask "1password"
@@ -25,6 +28,7 @@ cask "1password-cli"
 cask "android-studio"
 cask "appcleaner"
 cask "arc"
+cask "azure-data-studio"
 cask "cursor"
 cask "expo-orbit"
 cask "figma"
@@ -34,7 +38,9 @@ cask "iterm2"
 cask "keka"
 cask "kekaexternalhelper"
 cask "macs-fan-control"
+cask "mongodb-compass"
 cask "orbstack"
+cask "rapidapi"
 cask "raycast"
 cask "rectangle"
 cask "shottr"
@@ -54,6 +60,7 @@ mas "Codye", id: 1516894961
 mas "Compressor", id: 424390742
 mas "Craft", id: 1487937127
 mas "Denied", id: 909257784
+mas "Diffusers", id: 1666309574
 mas "Final Cut Pro", id: 424389933
 mas "GarageBand", id: 682658836
 mas "GP Calendar", id: 1632951751
@@ -71,11 +78,13 @@ mas "mymind", id: 1532801185
 mas "Numbers", id: 409203825
 mas "OneDrive", id: 823766827
 mas "Pages", id: 409201541
+mas "Passepartout", id: 1433648537
 mas "PastePal", id: 1503446680
 mas "Photomator", id: 1444636541
 mas "Playgrounds", id: 1496833156
 mas "Reeder", id: 1529448980
 mas "Speediness", id: 1596706466
+mas "WireGuard", id: 1451685025
 mas "‎WhatsApp", id: 310633997
 vscode "1password.op-vscode"
 vscode "aaron-bond.better-comments"
@@ -114,7 +123,6 @@ vscode "ms-azuretools.vscode-azurecontainerapps"
 vscode "ms-azuretools.vscode-azurefunctions"
 vscode "ms-azuretools.vscode-azureresourcegroups"
 vscode "ms-azuretools.vscode-azurestaticwebapps"
-vscode "ms-azuretools.vscode-azurestorage"
 vscode "ms-azuretools.vscode-azurevirtualmachines"
 vscode "ms-azuretools.vscode-cosmosdb"
 vscode "ms-azuretools.vscode-docker"

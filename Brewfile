@@ -1,4 +1,6 @@
 tap "homebrew/bundle"
+tap "mongodb/brew"
+tap "planetscale/tap"
 tap "supabase/tap"
 brew "bash-completion"
 brew "btop"
@@ -7,45 +9,39 @@ brew "cocoapods"
 brew "deno"
 brew "fzf"
 brew "gh"
+brew "git-delta"
 brew "mactop"
 brew "mas"
-brew "minicom"
+brew "mysql-client"
 brew "neovim"
 brew "nvm"
 brew "pv"
-brew "sherlock"
-brew "sox"
 brew "tmux"
 brew "vercel-cli"
 brew "volta"
 brew "wget"
 brew "zoxide"
+brew "mongodb/brew/mongodb-database-tools"
+brew "planetscale/tap/pscale"
 brew "supabase/tap/supabase"
 cask "1password"
 cask "1password-cli"
-cask "altserver"
-cask "android-platform-tools"
+cask "alacritty"
 cask "android-studio"
 cask "appcleaner"
 cask "arc"
-cask "balenaetcher"
+cask "azure-data-studio"
 cask "cursor"
-cask "discord"
 cask "expo-orbit"
+cask "figma"
 cask "gitbutler"
-cask "google-chrome"
 cask "iina"
-cask "imageoptim"
 cask "iterm2"
-cask "karabiner-elements"
 cask "keka"
-cask "kekaexternalhelper"
 cask "macs-fan-control"
-cask "megasync"
+cask "mongodb-compass"
 cask "orbstack"
-cask "orion"
 cask "rapidapi"
-cask "raspberry-pi-imager"
 cask "raycast"
 cask "rectangle"
 cask "shottr"
@@ -54,10 +50,7 @@ cask "stats"
 cask "tableplus"
 cask "tailscale"
 cask "textmate"
-cask "thonny"
-cask "transmission"
 cask "visual-studio-code"
-cask "whisky"
 cask "zed"
 cask "zulu@17"
 mas "1Password for Safari", id: 1569813296
@@ -68,7 +61,6 @@ mas "Codye", id: 1516894961
 mas "Compressor", id: 424390742
 mas "Craft", id: 1487937127
 mas "Denied", id: 909257784
-mas "Developer", id: 640199958
 mas "Diffusers", id: 1666309574
 mas "Final Cut Pro", id: 424389933
 mas "GarageBand", id: 682658836
@@ -89,10 +81,11 @@ mas "OneDrive", id: 823766827
 mas "Pages", id: 409201541
 mas "Passepartout", id: 1433648537
 mas "PastePal", id: 1503446680
+mas "Photomator", id: 1444636541
 mas "Playgrounds", id: 1496833156
 mas "Reeder", id: 1529448980
-mas "Shazam", id: 897118787
 mas "Speediness", id: 1596706466
+mas "WireGuard", id: 1451685025
 mas "‎WhatsApp", id: 310633997
 vscode "1password.op-vscode"
 vscode "aaron-bond.better-comments"

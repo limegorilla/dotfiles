@@ -16,10 +16,12 @@ brew "mysql-client"
 brew "neovim"
 brew "nvm"
 brew "pv"
+brew "ripgrep"
 brew "tmux"
 brew "vercel-cli"
 brew "volta"
 brew "wget"
+brew "yt-dlp"
 brew "zoxide"
 brew "mongodb/brew/mongodb-database-tools"
 brew "planetscale/tap/pscale"
@@ -32,6 +34,7 @@ cask "appcleaner"
 cask "arc"
 cask "azure-data-studio"
 cask "cursor"
+cask "excalidrawz"
 cask "expo-orbit"
 cask "figma"
 cask "gitbutler"
@@ -54,6 +57,7 @@ cask "visual-studio-code"
 cask "zed"
 cask "zulu@17"
 mas "1Password for Safari", id: 1569813296
+mas "AdGuard for Safari", id: 1440147259
 mas "Amphetamine", id: 937984704
 mas "Apple Configurator", id: 1037126344
 mas "Broadcasts", id: 1469995354
@@ -62,7 +66,9 @@ mas "Compressor", id: 424390742
 mas "Craft", id: 1487937127
 mas "Denied", id: 909257784
 mas "Diffusers", id: 1666309574
+mas "Dynamic Wallpaper Maker", id: 1453846328
 mas "Final Cut Pro", id: 424389933
+mas "Flighty", id: 1358823008
 mas "GarageBand", id: 682658836
 mas "GP Calendar", id: 1632951751
 mas "iMovie", id: 408981434
@@ -85,7 +91,9 @@ mas "Photomator", id: 1444636541
 mas "Playgrounds", id: 1496833156
 mas "Reeder", id: 1529448980
 mas "Speediness", id: 1596706466
+mas "TestFlight", id: 899247664
 mas "WireGuard", id: 1451685025
+mas "Xcode", id: 497799835
 mas "‎WhatsApp", id: 310633997
 vscode "1password.op-vscode"
 vscode "aaron-bond.better-comments"

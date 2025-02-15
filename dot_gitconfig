@@ -15,6 +15,7 @@
 [core]
 	editor = nvim
 	pager = delta
+	ignoreCase = false
 [pull]
 	rebase = false
 [push]

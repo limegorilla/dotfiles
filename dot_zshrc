@@ -47,6 +47,7 @@ zinit snippet OMZP::command-not-found
 
 # Load completions
 autoload -Uz compinit && compinit
+eval "$(op completion zsh)"; compdef _op op
 
 zinit cdreplay -q
 
@@ -114,3 +115,6 @@ fi
 
 # https://github.com/volta-cli/volta/issues/927
 volta setup
+
+# Postgres
+export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"

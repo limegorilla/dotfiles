@@ -69,14 +69,12 @@ defaults write com.apple.dock show-recents -bool false
 clear_dock
 # Declare apps to set to dock
 declare -a apps=(
-    '/Applications/Arc.app'
-    '/Applications/Microsoft Outlook.app'
     '/System/Cryptexes/App/System/Applications/Safari.app'
-    '/System/Applications/Music.app'
-    '/System/Applications/Calendar.app'
-    '/Applications/iTerm.app'
-    '/Applications/TablePlus.app'
     '/Applications/Visual Studio Code.app'
+    '/Applications/Ghostty.app'
+    '/System/Applications/Mail.app'
+    '/System/Applications/Calendar.app'
+    '/System/Applications/Music.app'
 );
 # Add apps to dock
 for app in "${apps[@]}"; do

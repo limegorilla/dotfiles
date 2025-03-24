@@ -2,5 +2,6 @@
 
 # Install Rosetta for Apple Silicon // ARM64 platforms 
 {{ if (and (eq .chezmoi.os "darwin") (eq .chezmoi.arch "arm64")) }}
+echo "INSTALLING ROSETTA - PASSWORD MAY BE REQUIRED"
 softwareupdate --install-rosetta --agree-to-license
 {{ end }}

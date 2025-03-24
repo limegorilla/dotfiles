@@ -11,6 +11,9 @@ source "./dock_operations.sh"
 # ---------------------------------------------------------------------------------------------------------------------
 # Global settings
 # ---------------------------------------------------------------------------------------------------------------------
+
+echo "Modifying macOS Global Settings"
+
 # Do not autogather large files when submitting a feedback report
 defaults write com.apple.appleseed.FeedbackAssistant "Autogather" -bool "false" 
 # Disable automatic capitalization

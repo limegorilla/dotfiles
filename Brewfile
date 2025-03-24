@@ -158,3 +158,4 @@ mas "Windows App", id: 1295203466
 mas "Wipr", id: 1662217862
 mas "WireGuard", id: 1451685025
 mas "Xcode", id: 497799835
+

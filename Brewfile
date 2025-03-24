@@ -52,6 +52,7 @@ cask "appcleaner"
 cask "arc"
 cask "azure-data-studio"
 cask "balenaetcher"
+cask "bartender"
 cask "codeedit"
 cask "cursor"
 cask "discord"
@@ -62,6 +63,7 @@ cask "ghostty"
 cask "gitbutler"
 cask "google-chrome"
 cask "google-chrome@dev"
+cask "grandperspective"
 cask "handbrake"
 cask "iina"
 cask "imageoptim"
@@ -79,6 +81,7 @@ cask "orbstack"
 cask "rapidapi"
 cask "raspberry-pi-imager"
 cask "raycast"
+cask "readdle-spark"
 cask "rectangle"
 cask "shottr"
 cask "sigmaos"
@@ -89,20 +92,40 @@ cask "tailscale"
 cask "textmate"
 cask "thonny"
 cask "transmission"
+cask "utm"
+cask "virtualbox"
 cask "visual-studio-code"
 cask "wakatime"
 cask "whisky"
 cask "zed"
+cask "zed@preview"
 cask "zen-browser"
 cask "zoom"
 cask "zulu@17"
+vscode "alefragnani.project-manager"
+vscode "ban.spellright"
+vscode "bradlc.vscode-tailwindcss"
+vscode "codezombiech.gitignore"
+vscode "dbaeumer.vscode-eslint"
+vscode "donjayamanne.git-extension-pack"
+vscode "donjayamanne.githistory"
+vscode "eamodio.gitlens"
+vscode "esbenp.prettier-vscode"
+vscode "expo.vscode-expo-tools"
+vscode "github.copilot"
+vscode "github.copilot-chat"
+vscode "github.github-vscode-theme"
+vscode "leonardssh.vscord"
+vscode "ms-azuretools.vscode-docker"
+vscode "redhat.vscode-yaml"
+vscode "wakatime.vscode-wakatime"
+vscode "yoavbls.pretty-ts-errors"
+vscode "ziyasal.vscode-open-in-github"
 mas "1Password for Safari", id: 1569813296
 mas "Amphetamine", id: 937984704
 mas "Apple Configurator", id: 1037126344
 mas "Broadcasts", id: 1469995354
-mas "Codye", id: 1516894961
 mas "Compressor", id: 424390742
-mas "Craft", id: 1487937127
 mas "Crouton", id: 1461650987
 mas "Denied", id: 909257784
 mas "Developer", id: 640199958
@@ -111,7 +134,6 @@ mas "Dynamic Wallpaper Maker", id: 1453846328
 mas "Final Cut Pro", id: 424389933
 mas "Flighty", id: 1358823008
 mas "GarageBand", id: 682658836
-mas "GP Calendar", id: 1632951751
 mas "iMovie", id: 408981434
 mas "Keynote", id: 409183694
 mas "LanScan", id: 472226235
@@ -121,18 +143,13 @@ mas "Microsoft Outlook", id: 985367838
 mas "Microsoft Word", id: 462054704
 mas "Motion", id: 434290957
 mas "MusicHarbor", id: 1440405750
-mas "mymind", id: 1532801185
 mas "Numbers", id: 409203825
 mas "OneDrive", id: 823766827
 mas "Pages", id: 409201541
-mas "Passepartout", id: 1433648537
-mas "PastePal", id: 1503446680
 mas "Perplexity", id: 6714467650
 mas "Photomator", id: 1444636541
-mas "Reeder", id: 1529448980
 mas "Reeder", id: 6475002485
 mas "Shazam", id: 897118787
-mas "Skate City NY", id: 6448986810
 mas "Speediness", id: 1596706466
 mas "Swift Playground", id: 1496833156
 mas "TestFlight", id: 899247664

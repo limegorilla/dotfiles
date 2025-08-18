@@ -31,8 +31,16 @@ fi
 # ---------------------------------------------------------------------------------------------------------------------
 source "${ZINIT_HOME}/zinit.zsh"
 
-# Add in Powerlevel10k
-zinit ice depth=1; zinit light romkatv/powerlevel10k
+# Conditionally add in Powerlevel10k
+# Conditionally disable Powerlevel10k if SIMPLE_PROMPT is set
+if [[ -n "$SIMPLE_PROMPT" ]]; then
+  PROMPT='%n@%m:%~ %# '
+else
+  # Load Powerlevel10k only if not in SIMPLE_PROMPT mode
+  zinit ice depth=1
+  zinit light romkatv/powerlevel10k
+  [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+fi
 
 # Add in zsh plugins
 zinit light zsh-users/zsh-syntax-highlighting
@@ -51,12 +59,6 @@ eval "$(op completion zsh)"; compdef _op op
 
 zinit cdreplay -q
 
-# ---------------------------------------------------------------------------------------------------------------------
-# Powerlevel10k - Configuration
-# ---------------------------------------------------------------------------------------------------------------------
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
-# ---------------------------------------------------------------------------------------------------------------------
 # Zshell settings
 # ---------------------------------------------------------------------------------------------------------------------
 HISTSIZE=5000
@@ -86,6 +88,7 @@ zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'ls --color $realpath'
 alias ls='ls --color'
 alias vim='nvim'
 alias c='clear'
+alias ssh="TERM_SIMPLE=1 ssh"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Shell Intergrations
@@ -121,10 +124,5 @@ setopt completealiases
 # Postgres
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 
-# Conditionally disable powerlevel10k if the shell already has it
-# e.g if a device is ssh'ing into this shell
-if [[ -n "$SIMPLE_PROMPT" ]]; then
-  PROMPT='%n@%m:%~ %# '
-else
-  [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-fi
+# Additional
+EDITOR=nvim

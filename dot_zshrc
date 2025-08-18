@@ -116,5 +116,15 @@ fi
 # https://github.com/volta-cli/volta/issues/927
 volta setup
 
+setopt completealiases
+
 # Postgres
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
+
+# Conditionally disable powerlevel10k if the shell already has it
+# e.g if a device is ssh'ing into this shell
+if [[ -n "$SIMPLE_PROMPT" ]]; then
+  PROMPT='%n@%m:%~ %# '
+else
+  [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+fi

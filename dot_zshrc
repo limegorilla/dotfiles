@@ -31,22 +31,22 @@ fi
 # ---------------------------------------------------------------------------------------------------------------------
 source "${ZINIT_HOME}/zinit.zsh"
 
-# Conditionally add in Powerlevel10k
-# Conditionally disable Powerlevel10k if SIMPLE_PROMPT is set
-if [[ -n "$SIMPLE_PROMPT" ]]; then
-  PROMPT='%n@%m:%~ %# '
-else
-  # Load Powerlevel10k only if not in SIMPLE_PROMPT mode
+# Only load fancy plugins if not in SSH
+if [[ -z "$SSH_CONNECTION" && -z "$SSH_TTY" ]]; then
+  # Add in Powerlevel10k
   zinit ice depth=1
   zinit light romkatv/powerlevel10k
   [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-fi
 
-# Add in zsh plugins
-zinit light zsh-users/zsh-syntax-highlighting
-zinit light zsh-users/zsh-completions
-zinit light zsh-users/zsh-autosuggestions
-zinit light Aloxaf/fzf-tab
+  # Add in zsh plugins
+  zinit light zsh-users/zsh-syntax-highlighting
+  zinit light zsh-users/zsh-completions
+  zinit light zsh-users/zsh-autosuggestions
+  zinit light Aloxaf/fzf-tab
+else
+  # Simple prompt for SSH
+  PROMPT='%n@%m:%~ %# '
+fi
 
 # Add in snippets
 zinit snippet OMZP::git
@@ -106,23 +106,8 @@ command -v chezmoi >/dev/null && . <(chezmoi completion zsh)
 # ---------------------------------------------------------------------------------------------------------------------
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
-# ---------------------------------------------------------------------------------------------------------------------
-# Volta
-# ---------------------------------------------------------------------------------------------------------------------
-export VOLTA_HOME="$HOME/.volta"
-export PATH="$VOLTA_HOME/bin:$PATH"
-
-if [[ $(volta list) =~ "npm" && $(which npm) =~ "not found" ]]; then
-    echo "\nWARNING: Volta link to npm is broken. Run \`volta setup\` to fix."
-fi
-
-# https://github.com/volta-cli/volta/issues/927
-volta setup
-
-setopt completealiases
-
 # Postgres
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 
 # Additional
-EDITOR=nvim
+export EDITOR=nvim

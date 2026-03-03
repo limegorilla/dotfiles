@@ -106,8 +106,16 @@ command -v chezmoi >/dev/null && . <(chezmoi completion zsh)
 # ---------------------------------------------------------------------------------------------------------------------
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
-# Postgres
-export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
-
 # Additional
 export EDITOR=nvim
+
+# bun completions
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+
+# Added by LM Studio CLI (lms)
+export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH:$HOME/.lmstudio/bin:$BUN_INSTALL/bin"
+# End of LM Studio CLI section
+

@@ -49,9 +49,11 @@ elif ! sudo grep -q 'pam_tid.so' /etc/pam.d/sudo; then
   sudo gsed -i '2iauth        sufficient     pam_tid.so' /etc/pam.d/sudo
 fi
 
-# Secure keyboard entry in Terminal-likes
+# Secure keyboard entry in Terminal-likes (only for apps that are installed)
 defaults write -app Terminal SecureKeyboardEntry -bool true
-defaults write -app iTerm SecureKeyboardEntry -bool true
+if [[ -d "/Applications/iTerm.app" ]]; then
+  defaults write -app iTerm SecureKeyboardEntry -bool true
+fi
 
 # Require an administrator password to access system-wide preferences
 # https://www.tenable.com/audits/CIS_Apple_macOS_11_v2.0.0_L1

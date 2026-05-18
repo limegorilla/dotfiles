@@ -4,24 +4,32 @@
 # Walks every git repository under DIRECTORY (default: $DEVELOPER_DIR or
 # ~/Developer) and reports anything not yet committed, pushed or pulled.
 # Worktree leaves and submodules are skipped (their .git is a file, not a dir).
+# Build/dependency directories listed in EOD_SKIP_DIRS are pruned entirely.
 #
 # Usage:
 #   eod [DIR]              Show a compact table of repos needing attention.
-#   eod --fetch [DIR]      Fetch each repo first so behind counts are current.
+#   eod --no-fetch [DIR]   Skip `git fetch` (use last-known remote state).
 #   eod --apply [DIR]      Walk through each repo and choose what to do.
 #   eod -h | --help        Show this help.
 #
-# Notes:
-#   - Behind counts in the default view reflect the last `git fetch`. Use
-#     --fetch (or --apply, which implies --fetch) to refresh first.
+# Environment:
+#   EOD_SKIP_DIRS    Space-separated directory names to prune. Defaults to
+#                    common build/dependency caches that contain checked-out
+#                    git repos (Swift, Node, Go vendor, Xcode, Rust, etc.).
 
 set -euo pipefail
+
+# Prefer a UTF-8 locale so multi-byte glyphs (●, ↑, ─, …) render and
+# ${#string} counts characters, not bytes. macOS ships en_US.UTF-8.
+if [[ -z "${LC_ALL:-}" ]] && locale -a 2>/dev/null | grep -qi '^en_US\.UTF-8$'; then
+  export LC_ALL=en_US.UTF-8
+fi
 
 # ---------------------------------------------------------------------------
 # Args
 # ---------------------------------------------------------------------------
 APPLY=0
-FETCH=0
+FETCH=1
 ROOT=""
 
 print_help() {
@@ -30,12 +38,13 @@ print_help() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --apply)    APPLY=1; FETCH=1 ;;
-    --fetch)    FETCH=1 ;;
-    -h|--help)  print_help; exit 0 ;;
-    --)         shift; ROOT="${1:-}"; break ;;
-    -*)         echo "eod: unknown flag: $1" >&2; exit 2 ;;
-    *)          ROOT="$1" ;;
+    --apply)       APPLY=1 ;;
+    --fetch)       FETCH=1 ;;
+    --no-fetch)    FETCH=0 ;;
+    -h|--help)     print_help; exit 0 ;;
+    --)            shift; ROOT="${1:-}"; break ;;
+    -*)            echo "eod: unknown flag: $1" >&2; exit 2 ;;
+    *)             ROOT="$1" ;;
   esac
   shift || true
 done
@@ -47,26 +56,106 @@ if [[ ! -d "$ROOT" ]]; then
 fi
 ROOT="$(cd "$ROOT" && pwd)"
 
+# Directories to prune. Override via EOD_SKIP_DIRS env var.
+DEFAULT_SKIP_DIRS=(
+  .build           # SwiftPM
+  node_modules     # Node
+  vendor           # Go modules / PHP / Ruby
+  Pods             # CocoaPods
+  DerivedData      # Xcode
+  .terraform       # Terraform
+  .gradle          # Gradle
+  target           # Rust / Java
+  .venv venv       # Python virtualenvs
+  __pycache__
+  .next .nuxt .svelte-kit  # JS frameworks
+  .cache
+)
+IFS=' ' read -r -a SKIP_DIRS <<< "${EOD_SKIP_DIRS:-${DEFAULT_SKIP_DIRS[*]}}"
+
 # ---------------------------------------------------------------------------
-# Colours
+# Colours / UI
 # ---------------------------------------------------------------------------
 if [[ -t 1 ]]; then
   BOLD=$'\e[1m'; DIM=$'\e[2m'; RST=$'\e[0m'
   YEL=$'\e[33m'; MAG=$'\e[35m'; CYA=$'\e[36m'
   GRN=$'\e[32m'; RED=$'\e[31m'
+  CLR_LINE=$'\r\e[K'
 else
-  BOLD=""; DIM=""; RST=""; YEL=""; MAG=""; CYA=""; GRN=""; RED=""
+  BOLD=""; DIM=""; RST=""; YEL=""; MAG=""; CYA=""; GRN=""; RED=""; CLR_LINE=""
 fi
+
+SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+
+term_width() {
+  local cols
+  cols="${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}"
+  [[ "$cols" =~ ^[0-9]+$ ]] && echo "$cols" || echo 80
+}
+
+# Replacement-character-aware middle truncation. Assumes 1-cell-per-char glyphs
+# (true for the user-facing paths and branches we display).
+truncate_middle() {
+  local s="$1" max="$2"
+  if [[ ${#s} -le $max ]]; then
+    printf '%s' "$s"
+  else
+    local keep=$((max - 1))
+    local head=$(( keep / 2 ))
+    local tail=$(( keep - head ))
+    printf '%s…%s' "${s:0:$head}" "${s: -$tail}"
+  fi
+}
+
+# Print and clear a "live" status line on the TTY. These must always return
+# 0 even when there's no TTY -- they're called under `set -e`.
+status() {
+  if [[ -n "$CLR_LINE" ]]; then
+    printf '%s%s' "$CLR_LINE" "$1"
+  fi
+  return 0
+}
+
+clear_status() {
+  if [[ -n "$CLR_LINE" ]]; then
+    printf '%s' "$CLR_LINE"
+  fi
+  return 0
+}
 
 # ---------------------------------------------------------------------------
 # Discover repos
-# `.git` as a directory => regular working tree. Worktree leaves have `.git`
-# as a file; submodules likewise. `-type d` skips both.
+# `.git` as a directory => regular working tree. Worktree leaves and
+# submodules have `.git` as a file; `-type d` skips both.
 # ---------------------------------------------------------------------------
+status "${SPIN[0]} Finding repos in $(truncate_middle "$ROOT" 60)…"
+
+# Build a find expression that prunes the skip dirs:
+#   find ROOT \( -type d \( -name A -o -name B ... \) -prune \) -o \
+#     \( -name .git -type d -prune -print0 \)
+find_expr=( "$ROOT" )
+if [[ ${#SKIP_DIRS[@]} -gt 0 ]]; then
+  find_expr+=( '(' '-type' 'd' '(' )
+  first=1
+  for d in "${SKIP_DIRS[@]}"; do
+    [[ -z "$d" ]] && continue
+    if [[ $first -eq 1 ]]; then
+      find_expr+=( '-name' "$d" )
+      first=0
+    else
+      find_expr+=( '-o' '-name' "$d" )
+    fi
+  done
+  find_expr+=( ')' '-prune' ')' '-o' )
+fi
+find_expr+=( '(' '-name' '.git' '-type' 'd' '-prune' '-print0' ')' )
+
 repos=()
 while IFS= read -r -d '' git_dir; do
   repos+=("${git_dir%/.git}")
-done < <(find "$ROOT" -name .git -type d -prune -print0)
+done < <(find "${find_expr[@]}")
+
+clear_status
 
 if [[ ${#repos[@]} -eq 0 ]]; then
   echo "eod: no git repos found under $ROOT"
@@ -76,36 +165,60 @@ IFS=$'\n' repos=($(printf '%s\n' "${repos[@]}" | sort))
 unset IFS
 
 # ---------------------------------------------------------------------------
-# Optional parallel fetch
+# Parallel fetch with live spinner
 # ---------------------------------------------------------------------------
 if [[ $FETCH -eq 1 ]]; then
-  printf "${DIM}Fetching %d repo(s)…${RST}\n" "${#repos[@]}"
-  running=0
-  for repo in "${repos[@]}"; do
-    (cd "$repo" && git fetch --quiet --all --prune 2>/dev/null || true) &
-    running=$((running + 1))
-    if [[ $running -ge 10 ]]; then
-      wait -n 2>/dev/null || wait
-      running=$((running - 1))
-    fi
+  status_dir=$(mktemp -d -t eod.XXXXXX)
+  trap 'rm -rf "$status_dir"' EXIT
+
+  total=${#repos[@]}
+
+  (
+    running=0 idx=0
+    for repo in "${repos[@]}"; do
+      idx=$((idx + 1))
+      (
+        cd "$repo" && git fetch --quiet --all --prune 2>/dev/null || true
+        touch "$status_dir/$idx"
+      ) &
+      running=$((running + 1))
+      if [[ $running -ge 10 ]]; then
+        wait -n 2>/dev/null || wait
+        running=$((running - 1))
+      fi
+    done
+    wait
+    touch "$status_dir/.done"
+  ) &
+
+  spin_i=0
+  while [[ ! -e "$status_dir/.done" ]]; do
+    done_n=$(find "$status_dir" -maxdepth 1 -type f \! -name '.done' 2>/dev/null | wc -l | tr -d ' ')
+    status "${SPIN[$spin_i]} Fetching…  ${DIM}$done_n/$total${RST}"
+    spin_i=$(( (spin_i + 1) % ${#SPIN[@]} ))
+    sleep 0.08
   done
   wait
+  clear_status
 fi
 
 # ---------------------------------------------------------------------------
 # Collect state
 # ---------------------------------------------------------------------------
-names=()      # display path relative to ROOT
+names=()
 branches=()
 upstreams=()
 dirty=()
 ahead=()
 behind=()
-needs=()      # 1 if needs attention
+needs=()
 
+idx=0
 for repo in "${repos[@]}"; do
-  cd "$repo"
+  idx=$((idx + 1))
+  status "${SPIN[$((idx % ${#SPIN[@]}))]} Analysing…  ${DIM}$idx/${#repos[@]}${RST}"
 
+  cd "$repo"
   name="${repo#$ROOT/}"
   branch="$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo '?')"
   upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
@@ -113,7 +226,9 @@ for repo in "${repos[@]}"; do
   d=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
   a=0; b=0
   if [[ -n "$upstream" ]]; then
-    if read -r b a < <(git rev-list --left-right --count "@{u}...HEAD" 2>/dev/null); then :; else b=0; a=0; fi
+    if ! read -r b a < <(git rev-list --left-right --count "@{u}...HEAD" 2>/dev/null); then
+      b=0; a=0
+    fi
   fi
 
   iss=0
@@ -131,22 +246,20 @@ for repo in "${repos[@]}"; do
   behind+=("$b")
   needs+=("$iss")
 done
+clear_status
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Status formatter
 # ---------------------------------------------------------------------------
 format_status() {  # d a b upstream
   local d="$1" a="$2" b="$3" up="$4"
-  local parts=()
-  [[ $d -gt 0 ]] && parts+=("${YEL}●${d}${RST}")
-  [[ $a -gt 0 ]] && parts+=("${MAG}↑${a}${RST}")
-  [[ $b -gt 0 ]] && parts+=("${CYA}↓${b}${RST}")
-  [[ -z "$up" ]] && parts+=("${DIM}no upstream${RST}")
-  if [[ ${#parts[@]} -eq 0 ]]; then
-    printf '%b' "${DIM}─${RST}"
-  else
-    (IFS=' '; printf '%b' "${parts[*]}")
-  fi
+  local out=""
+  [[ $d -gt 0 ]] && out+="${YEL}●${d}${RST} "
+  [[ $a -gt 0 ]] && out+="${MAG}↑${a}${RST} "
+  [[ $b -gt 0 ]] && out+="${CYA}↓${b}${RST} "
+  [[ -z "$up" ]] && out+="${DIM}⊘ no upstream${RST} "
+  [[ -z "$out" ]] && out="${DIM}─${RST}"
+  printf '%s' "${out% }"
 }
 
 attention=0
@@ -160,41 +273,65 @@ display_root="${ROOT/#$HOME/~}"
 # Default mode: table
 # ---------------------------------------------------------------------------
 if [[ $APPLY -eq 0 ]]; then
-  printf "${BOLD}end-of-day${RST}  %s\n" "$display_root"
-
   if [[ $attention -eq 0 ]]; then
+    printf "${BOLD}end-of-day${RST}  ${DIM}%s${RST}\n" "$display_root"
     printf "${GRN}All %d repos caught up.${RST}  Have a good evening.\n" "${#repos[@]}"
     exit 0
   fi
 
-  # Column widths over repos that will actually be printed
-  max_name=4
-  max_branch=6
+  # Reserve a sensible chunk of the terminal for the path column.
+  tw=$(term_width)
+  max_path_cap=$(( tw - 32 ))  # leave room for branch + status + padding
+  (( max_path_cap < 24 )) && max_path_cap=24
+  (( max_path_cap > 80 )) && max_path_cap=80
+  max_branch_cap=24
+
+  # Compute actual column widths from the (possibly truncated) data.
+  name_w=4
+  branch_w=6
+  display_names=()
+  display_branches=()
   for i in "${!names[@]}"; do
     [[ ${needs[i]} -eq 0 ]] && continue
-    [[ ${#names[i]}    -gt $max_name   ]] && max_name=${#names[i]}
-    [[ ${#branches[i]} -gt $max_branch ]] && max_branch=${#branches[i]}
+    n=$(truncate_middle "${names[i]}"    "$max_path_cap")
+    b=$(truncate_middle "${branches[i]}" "$max_branch_cap")
+    display_names+=("$n")
+    display_branches+=("$b")
+    (( ${#n} > name_w   )) && name_w=${#n}
+    (( ${#b} > branch_w )) && branch_w=${#b}
   done
 
-  echo
+  printf "${BOLD}end-of-day${RST}  ${DIM}%s · %d of %d need attention${RST}\n\n" \
+    "$display_root" "$attention" "${#repos[@]}"
+
+  # Headers
+  rule() {  # repeat ─ N times
+    local n="$1" s=""
+    while (( n-- > 0 )); do s+="─"; done
+    printf '%s' "$s"
+  }
+  printf "  ${DIM}%-${name_w}s  %-${branch_w}s  %s${RST}\n" "REPO" "BRANCH" "STATUS"
+  printf "  ${DIM}%s  %s  %s${RST}\n" "$(rule "$name_w")" "$(rule "$branch_w")" "──────"
+
+  j=0
   for i in "${!names[@]}"; do
     [[ ${needs[i]} -eq 0 ]] && continue
-    status=$(format_status "${dirty[i]}" "${ahead[i]}" "${behind[i]}" "${upstreams[i]}")
-    printf "  %-${max_name}s  ${DIM}%-${max_branch}s${RST}  %b\n" \
-      "${names[i]}" "${branches[i]}" "$status"
+    status_str=$(format_status "${dirty[i]}" "${ahead[i]}" "${behind[i]}" "${upstreams[i]}")
+    printf "  %-${name_w}s  ${DIM}%-${branch_w}s${RST}  %b\n" \
+      "${display_names[$j]}" "${display_branches[$j]}" "$status_str"
+    j=$((j + 1))
   done
 
-  printf "\n${DIM}%d of %d need attention.${RST}" "$attention" "${#repos[@]}"
   if [[ $FETCH -eq 0 ]]; then
-    printf "  ${DIM}Run \`eod --fetch\` to refresh remote state, or \`eod --apply\` to act.${RST}\n"
+    printf "\n${DIM}Last-known remote state. Drop \`--no-fetch\` to refresh, or \`eod --apply\` to act.${RST}\n"
   else
-    printf "  ${DIM}Run \`eod --apply\` to act.${RST}\n"
+    printf "\n${DIM}\`eod --apply\` to act on these.${RST}\n"
   fi
   exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# --apply mode: walk through each repo with issues
+# --apply mode
 # ---------------------------------------------------------------------------
 if [[ $attention -eq 0 ]]; then
   printf "${GRN}All %d repos caught up. Nothing to do.${RST}\n" "${#repos[@]}"
@@ -218,23 +355,21 @@ for i in "${!names[@]}"; do
     "$current" "$attention" "$name" "$branch"
   printf "  %b\n\n" "$(format_status "$d" "$a" "$b" "$upstream")"
 
-  # Build state-appropriate menu
   options=()
   if [[ -z "$upstream" ]]; then
-    : # no remote actions when there's no upstream
+    :
   elif [[ $b -gt 0 && $a -eq 0 && $d -eq 0 ]]; then
     options+=("u|pull (fast-forward)")
   elif [[ $b -gt 0 && $d -gt 0 ]]; then
     options+=("t|stash, pull --rebase, pop")
   elif [[ $a -gt 0 && $b -gt 0 ]]; then
-    options+=("r|pull --rebase  (pushes can follow after rebase succeeds)")
+    options+=("r|pull --rebase")
   elif [[ $a -gt 0 && $d -eq 0 ]]; then
     options+=("p|push")
   elif [[ $a -gt 0 && $d -gt 0 ]]; then
     options+=("p|push (won't include uncommitted changes)")
   fi
 
-  # Always-available actions
   [[ $d -gt 0 ]] && options+=("v|view diff")
   [[ $a -gt 0 ]] && options+=("l|view unpushed log")
   options+=("s|open shell here")

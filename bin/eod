@@ -1,102 +1,282 @@
 #!/usr/bin/env bash
 # eod -- "end of day" git report.
 #
-# Walks every git repository under $DEVELOPER_DIR (default: ~/Developer) and
-# reports anything that isn't yet committed or pushed, so nothing gets left
-# behind at the end of the day.
+# Walks every git repository under DIRECTORY (default: $DEVELOPER_DIR or
+# ~/Developer) and reports anything not yet committed, pushed or pulled.
+# Worktree leaves and submodules are skipped (their .git is a file, not a dir).
 #
 # Usage:
-#   eod                          # scan ~/Developer
-#   eod ~/code                   # scan a different directory
-#   DEVELOPER_DIR=~/code eod     # same, via env var
+#   eod [DIR]              Show a compact table of repos needing attention.
+#   eod --fetch [DIR]      Fetch each repo first so behind counts are current.
+#   eod --apply [DIR]      Walk through each repo and choose what to do.
+#   eod -h | --help        Show this help.
+#
+# Notes:
+#   - Behind counts in the default view reflect the last `git fetch`. Use
+#     --fetch (or --apply, which implies --fetch) to refresh first.
 
 set -euo pipefail
 
-ROOT="${1:-${DEVELOPER_DIR:-$HOME/Developer}}"
+# ---------------------------------------------------------------------------
+# Args
+# ---------------------------------------------------------------------------
+APPLY=0
+FETCH=0
+ROOT=""
 
+print_help() {
+  awk '/^# eod/,/^$/' "$0" | sed -E 's/^# ?//'
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apply)    APPLY=1; FETCH=1 ;;
+    --fetch)    FETCH=1 ;;
+    -h|--help)  print_help; exit 0 ;;
+    --)         shift; ROOT="${1:-}"; break ;;
+    -*)         echo "eod: unknown flag: $1" >&2; exit 2 ;;
+    *)          ROOT="$1" ;;
+  esac
+  shift || true
+done
+
+ROOT="${ROOT:-${DEVELOPER_DIR:-$HOME/Developer}}"
 if [[ ! -d "$ROOT" ]]; then
-  echo "eod: directory not found: $ROOT" >&2
+  echo "eod: not a directory: $ROOT" >&2
   exit 1
 fi
+ROOT="$(cd "$ROOT" && pwd)"
 
-# Colours (disabled when stdout isn't a TTY)
+# ---------------------------------------------------------------------------
+# Colours
+# ---------------------------------------------------------------------------
 if [[ -t 1 ]]; then
-  BOLD=$'\033[1m'; DIM=$'\033[2m'
-  YEL=$'\033[33m'; MAG=$'\033[35m'; CYA=$'\033[36m'
-  GRN=$'\033[32m'; RST=$'\033[0m'
+  BOLD=$'\e[1m'; DIM=$'\e[2m'; RST=$'\e[0m'
+  YEL=$'\e[33m'; MAG=$'\e[35m'; CYA=$'\e[36m'
+  GRN=$'\e[32m'; RED=$'\e[31m'
 else
-  BOLD=""; DIM=""; YEL=""; MAG=""; CYA=""; GRN=""; RST=""
+  BOLD=""; DIM=""; RST=""; YEL=""; MAG=""; CYA=""; GRN=""; RED=""
 fi
 
-# Collect repos (prune nested .git directories so we don't recurse into submodules)
+# ---------------------------------------------------------------------------
+# Discover repos
+# `.git` as a directory => regular working tree. Worktree leaves have `.git`
+# as a file; submodules likewise. `-type d` skips both.
+# ---------------------------------------------------------------------------
 repos=()
 while IFS= read -r -d '' git_dir; do
   repos+=("${git_dir%/.git}")
-done < <(find "$ROOT" -name .git -type d -prune -print0 | sort -z)
+done < <(find "$ROOT" -name .git -type d -prune -print0)
 
 if [[ ${#repos[@]} -eq 0 ]]; then
-  echo "eod: no git repositories found under $ROOT"
+  echo "eod: no git repos found under $ROOT"
+  exit 0
+fi
+IFS=$'\n' repos=($(printf '%s\n' "${repos[@]}" | sort))
+unset IFS
+
+# ---------------------------------------------------------------------------
+# Optional parallel fetch
+# ---------------------------------------------------------------------------
+if [[ $FETCH -eq 1 ]]; then
+  printf "${DIM}Fetching %d repo(s)…${RST}\n" "${#repos[@]}"
+  running=0
+  for repo in "${repos[@]}"; do
+    (cd "$repo" && git fetch --quiet --all --prune 2>/dev/null || true) &
+    running=$((running + 1))
+    if [[ $running -ge 10 ]]; then
+      wait -n 2>/dev/null || wait
+      running=$((running - 1))
+    fi
+  done
+  wait
+fi
+
+# ---------------------------------------------------------------------------
+# Collect state
+# ---------------------------------------------------------------------------
+names=()      # display path relative to ROOT
+branches=()
+upstreams=()
+dirty=()
+ahead=()
+behind=()
+needs=()      # 1 if needs attention
+
+for repo in "${repos[@]}"; do
+  cd "$repo"
+
+  name="${repo#$ROOT/}"
+  branch="$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo '?')"
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+
+  d=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  a=0; b=0
+  if [[ -n "$upstream" ]]; then
+    if read -r b a < <(git rev-list --left-right --count "@{u}...HEAD" 2>/dev/null); then :; else b=0; a=0; fi
+  fi
+
+  iss=0
+  if [[ $d -gt 0 || $a -gt 0 || $b -gt 0 ]]; then
+    iss=1
+  elif [[ -z "$upstream" ]] && git rev-parse HEAD >/dev/null 2>&1; then
+    iss=1
+  fi
+
+  names+=("$name")
+  branches+=("$branch")
+  upstreams+=("$upstream")
+  dirty+=("$d")
+  ahead+=("$a")
+  behind+=("$b")
+  needs+=("$iss")
+done
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+format_status() {  # d a b upstream
+  local d="$1" a="$2" b="$3" up="$4"
+  local parts=()
+  [[ $d -gt 0 ]] && parts+=("${YEL}●${d}${RST}")
+  [[ $a -gt 0 ]] && parts+=("${MAG}↑${a}${RST}")
+  [[ $b -gt 0 ]] && parts+=("${CYA}↓${b}${RST}")
+  [[ -z "$up" ]] && parts+=("${DIM}no upstream${RST}")
+  if [[ ${#parts[@]} -eq 0 ]]; then
+    printf '%b' "${DIM}─${RST}"
+  else
+    (IFS=' '; printf '%b' "${parts[*]}")
+  fi
+}
+
+attention=0
+for i in "${!names[@]}"; do
+  [[ ${needs[i]} -eq 1 ]] && attention=$((attention + 1))
+done
+
+display_root="${ROOT/#$HOME/~}"
+
+# ---------------------------------------------------------------------------
+# Default mode: table
+# ---------------------------------------------------------------------------
+if [[ $APPLY -eq 0 ]]; then
+  printf "${BOLD}end-of-day${RST}  %s\n" "$display_root"
+
+  if [[ $attention -eq 0 ]]; then
+    printf "${GRN}All %d repos caught up.${RST}  Have a good evening.\n" "${#repos[@]}"
+    exit 0
+  fi
+
+  # Column widths over repos that will actually be printed
+  max_name=4
+  max_branch=6
+  for i in "${!names[@]}"; do
+    [[ ${needs[i]} -eq 0 ]] && continue
+    [[ ${#names[i]}    -gt $max_name   ]] && max_name=${#names[i]}
+    [[ ${#branches[i]} -gt $max_branch ]] && max_branch=${#branches[i]}
+  done
+
+  echo
+  for i in "${!names[@]}"; do
+    [[ ${needs[i]} -eq 0 ]] && continue
+    status=$(format_status "${dirty[i]}" "${ahead[i]}" "${behind[i]}" "${upstreams[i]}")
+    printf "  %-${max_name}s  ${DIM}%-${max_branch}s${RST}  %b\n" \
+      "${names[i]}" "${branches[i]}" "$status"
+  done
+
+  printf "\n${DIM}%d of %d need attention.${RST}" "$attention" "${#repos[@]}"
+  if [[ $FETCH -eq 0 ]]; then
+    printf "  ${DIM}Run \`eod --fetch\` to refresh remote state, or \`eod --apply\` to act.${RST}\n"
+  else
+    printf "  ${DIM}Run \`eod --apply\` to act.${RST}\n"
+  fi
   exit 0
 fi
 
-dirty=0
-unpushed=0
-no_upstream=0
+# ---------------------------------------------------------------------------
+# --apply mode: walk through each repo with issues
+# ---------------------------------------------------------------------------
+if [[ $attention -eq 0 ]]; then
+  printf "${GRN}All %d repos caught up. Nothing to do.${RST}\n" "${#repos[@]}"
+  exit 0
+fi
 
-printf "${BOLD}End-of-day report${RST}  ${DIM}(%s)${RST}\n\n" "$ROOT"
+current=0
+for i in "${!names[@]}"; do
+  [[ ${needs[i]} -eq 0 ]] && continue
+  current=$((current + 1))
 
-for repo in "${repos[@]}"; do
-  if [[ "$repo" == "$HOME/"* ]]; then
-    display="~/${repo#$HOME/}"
-  else
-    display="$repo"
-  fi
+  repo="${repos[i]}"
+  name="${names[i]}"
+  branch="${branches[i]}"
+  upstream="${upstreams[i]}"
+  d=${dirty[i]}; a=${ahead[i]}; b=${behind[i]}
+
   cd "$repo"
 
-  status="$(git status --porcelain 2>/dev/null || true)"
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+  printf "\n${BOLD}[%d/%d] %s${RST}  ${DIM}(%s)${RST}\n" \
+    "$current" "$attention" "$name" "$branch"
+  printf "  %b\n\n" "$(format_status "$d" "$a" "$b" "$upstream")"
 
-  repo_has_issue=0
-  repo_lines=()
-
-  # Uncommitted work
-  if [[ -n "$status" ]]; then
-    file_count=$(printf '%s\n' "$status" | wc -l | tr -d ' ')
-    repo_lines+=("  ${YEL}● uncommitted${RST}  ${file_count} file(s)")
-    dirty=$((dirty + 1))
-    repo_has_issue=1
+  # Build state-appropriate menu
+  options=()
+  if [[ -z "$upstream" ]]; then
+    : # no remote actions when there's no upstream
+  elif [[ $b -gt 0 && $a -eq 0 && $d -eq 0 ]]; then
+    options+=("u|pull (fast-forward)")
+  elif [[ $b -gt 0 && $d -gt 0 ]]; then
+    options+=("t|stash, pull --rebase, pop")
+  elif [[ $a -gt 0 && $b -gt 0 ]]; then
+    options+=("r|pull --rebase  (pushes can follow after rebase succeeds)")
+  elif [[ $a -gt 0 && $d -eq 0 ]]; then
+    options+=("p|push")
+  elif [[ $a -gt 0 && $d -gt 0 ]]; then
+    options+=("p|push (won't include uncommitted changes)")
   fi
 
-  # Unpushed commits (only meaningful with an upstream)
-  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-  if [[ -n "$upstream" ]]; then
-    ahead=$(git rev-list --count "@{u}..HEAD" 2>/dev/null || echo 0)
-    if [[ "$ahead" -gt 0 ]]; then
-      repo_lines+=("  ${MAG}↑ unpushed${RST}    ${ahead} commit(s) on ${branch} (-> ${upstream})")
-      unpushed=$((unpushed + 1))
-      repo_has_issue=1
-    fi
-  else
-    # No upstream: only complain if there are commits beyond the initial state
-    if git rev-parse HEAD >/dev/null 2>&1 && [[ "$(git rev-list --count HEAD)" -gt 0 ]]; then
-      repo_lines+=("  ${CYA}↯ no upstream${RST} ${branch} has no remote tracking branch")
-      no_upstream=$((no_upstream + 1))
-      repo_has_issue=1
-    fi
-  fi
+  # Always-available actions
+  [[ $d -gt 0 ]] && options+=("v|view diff")
+  [[ $a -gt 0 ]] && options+=("l|view unpushed log")
+  options+=("s|open shell here")
+  options+=("k|skip")
+  options+=("q|quit")
 
-  if [[ $repo_has_issue -eq 1 ]]; then
-    printf "${BOLD}%s${RST}\n" "$display"
-    printf '%s\n' "${repo_lines[@]}"
-    echo
-  fi
+  for opt in "${options[@]}"; do
+    key="${opt%%|*}"; label="${opt#*|}"
+    printf "  ${BOLD}[%s]${RST} %s\n" "$key" "$label"
+  done
+
+  printf "\n> "
+  read -r -n 1 choice || true
+  echo
+
+  case "$choice" in
+    u) git pull --ff-only || printf "${RED}pull failed${RST}\n" ;;
+    p) git push           || printf "${RED}push failed${RST}\n" ;;
+    r) git pull --rebase  || printf "${RED}rebase failed; resolve manually${RST}\n" ;;
+    t)
+      stash="eod-$(date +%Y%m%d-%H%M%S)"
+      if git stash push -u -m "$stash" >/dev/null; then
+        if git pull --rebase; then
+          git stash pop || printf "${RED}stash pop conflicted; resolve in %s (stash kept)${RST}\n" "$name"
+        else
+          printf "${RED}rebase failed; your changes are stashed as '%s'${RST}\n" "$stash"
+        fi
+      else
+        printf "${DIM}nothing to stash; pulling anyway…${RST}\n"
+        git pull --rebase || printf "${RED}rebase failed${RST}\n"
+      fi
+      ;;
+    v) git diff || true ;;
+    l) git --no-pager log "@{u}..HEAD" --oneline ;;
+    s)
+      printf "${DIM}-- shell in %s; exit to continue --${RST}\n" "$name"
+      "${SHELL:-/bin/zsh}" -i || true
+      ;;
+    k|"") printf "${DIM}skipped${RST}\n" ;;
+    q) printf "${DIM}stopped at %s${RST}\n" "$name"; exit 0 ;;
+    *) printf "${DIM}'%s' is not a choice; skipped${RST}\n" "$choice" ;;
+  esac
 done
 
-clean=$((${#repos[@]} - dirty - unpushed - no_upstream))
-printf "${DIM}Scanned %d repo(s):${RST}\n" "${#repos[@]}"
-printf "  ${YEL}%d${RST} with uncommitted changes\n" "$dirty"
-printf "  ${MAG}%d${RST} with unpushed commits\n" "$unpushed"
-printf "  ${CYA}%d${RST} on a branch with no upstream\n" "$no_upstream"
-if [[ $dirty -eq 0 && $unpushed -eq 0 && $no_upstream -eq 0 ]]; then
-  printf "${GRN}All caught up. Have a good evening.${RST}\n"
-fi
+printf "\n${GRN}Done.${RST}  Have a good evening.\n"

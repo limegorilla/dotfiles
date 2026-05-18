@@ -1,0 +1,111 @@
+name: install
+
+# Smoke-test that a fresh Mac install still works.
+# Runs the brew-only subset of the Brewfile (mas needs an Apple ID, casks
+# are slow and irrelevant to CI), stows the dotfiles, then sanity-checks
+# that the tooling we rely on (brew, pnpm, eod) is functional.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - Brewfile
+      - Makefile
+      - bin/**
+      - home/**
+      - macos/**
+      - scripts/**
+      - .github/workflows/**
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          sw_vers
+          uname -m
+          brew --version
+          which brew
+
+      - name: Brews-only Brewfile (skip mas + cask + vscode + cargo)
+        run: |
+          grep -E '^(tap|brew) ' Brewfile > Brewfile.ci
+          echo "--- Brewfile.ci ---"
+          cat Brewfile.ci
+
+      - name: brew bundle
+        run: brew bundle --no-lock --file=Brewfile.ci
+
+      - name: make stow (clear conflicts first)
+        run: |
+          # The hosted runner ships some default dotfiles; remove the ones
+          # we manage so stow doesn't refuse to link.
+          rm -f  ~/.zshrc ~/.gitconfig ~/.gitignore_global ~/.p10k.zsh
+          rm -f  ~/.ssh/config
+          rm -rf ~/.config/nvim
+          make stow
+
+      - name: Verify symlinks
+        run: |
+          set -x
+          test -L ~/.zshrc
+          test -L ~/.gitconfig
+          test -L ~/.p10k.zsh
+          test -L ~/.gitignore_global
+          test -L ~/.ssh/config
+          test -L ~/.config/nvim/init.lua
+
+      - name: brew works
+        run: |
+          brew --version
+          brew list --formula | head -20
+
+      - name: node + pnpm work
+        run: |
+          node --version
+          pnpm --version
+          # Round-trip: pnpm can init a project and install a tiny dep.
+          mkdir -p /tmp/pnpm-test && cd /tmp/pnpm-test
+          pnpm init >/dev/null
+          pnpm add --silent ms >/dev/null
+          test -f node_modules/ms/package.json
+          node -e "console.log(require('ms')('2 days'))"
+
+      - name: eod smoke test
+        run: |
+          set -x
+          export DEVELOPER_DIR=/tmp/test-repos
+          mkdir -p "$DEVELOPER_DIR"/{clean,dirty,ahead}
+
+          # clean repo
+          git -C "$DEVELOPER_DIR/clean" init -q
+          git -C "$DEVELOPER_DIR/clean" -c user.email=t@t -c user.name=t commit --allow-empty -q -m initial
+
+          # dirty repo
+          git -C "$DEVELOPER_DIR/dirty" init -q
+          touch "$DEVELOPER_DIR/dirty/foo.txt"
+
+          # ahead repo (fake upstream)
+          git -C "$DEVELOPER_DIR/ahead" init -q
+          git -C "$DEVELOPER_DIR/ahead" -c user.email=t@t -c user.name=t commit --allow-empty -q -m initial
+          git -C "$DEVELOPER_DIR/ahead" update-ref refs/remotes/origin/main HEAD
+          git -C "$DEVELOPER_DIR/ahead" remote add origin /tmp/fake.git
+          git -C "$DEVELOPER_DIR/ahead" symbolic-ref HEAD refs/heads/main
+          git -C "$DEVELOPER_DIR/ahead" -c user.email=t@t -c user.name=t commit --allow-empty -q -m local
+          git -C "$DEVELOPER_DIR/ahead" branch --set-upstream-to=origin/main >/dev/null
+
+          ./bin/eod --no-fetch "$DEVELOPER_DIR"
+
+      - name: make doctor
+        run: make doctor

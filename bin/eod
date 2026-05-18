@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# eod -- "end of day" git report.
+#
+# Walks every git repository under $DEVELOPER_DIR (default: ~/Developer) and
+# reports anything that isn't yet committed or pushed, so nothing gets left
+# behind at the end of the day.
+#
+# Usage:
+#   eod                          # scan ~/Developer
+#   eod ~/code                   # scan a different directory
+#   DEVELOPER_DIR=~/code eod     # same, via env var
+
+set -euo pipefail
+
+ROOT="${1:-${DEVELOPER_DIR:-$HOME/Developer}}"
+
+if [[ ! -d "$ROOT" ]]; then
+  echo "eod: directory not found: $ROOT" >&2
+  exit 1
+fi
+
+# Colours (disabled when stdout isn't a TTY)
+if [[ -t 1 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'
+  YEL=$'\033[33m'; MAG=$'\033[35m'; CYA=$'\033[36m'
+  GRN=$'\033[32m'; RST=$'\033[0m'
+else
+  BOLD=""; DIM=""; YEL=""; MAG=""; CYA=""; GRN=""; RST=""
+fi
+
+# Collect repos (prune nested .git directories so we don't recurse into submodules)
+repos=()
+while IFS= read -r -d '' git_dir; do
+  repos+=("${git_dir%/.git}")
+done < <(find "$ROOT" -name .git -type d -prune -print0 | sort -z)
+
+if [[ ${#repos[@]} -eq 0 ]]; then
+  echo "eod: no git repositories found under $ROOT"
+  exit 0
+fi
+
+dirty=0
+unpushed=0
+no_upstream=0
+
+printf "${BOLD}End-of-day report${RST}  ${DIM}(%s)${RST}\n\n" "$ROOT"
+
+for repo in "${repos[@]}"; do
+  if [[ "$repo" == "$HOME/"* ]]; then
+    display="~/${repo#$HOME/}"
+  else
+    display="$repo"
+  fi
+  cd "$repo"
+
+  status="$(git status --porcelain 2>/dev/null || true)"
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+
+  repo_has_issue=0
+  repo_lines=()
+
+  # Uncommitted work
+  if [[ -n "$status" ]]; then
+    file_count=$(printf '%s\n' "$status" | wc -l | tr -d ' ')
+    repo_lines+=("  ${YEL}● uncommitted${RST}  ${file_count} file(s)")
+    dirty=$((dirty + 1))
+    repo_has_issue=1
+  fi
+
+  # Unpushed commits (only meaningful with an upstream)
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  if [[ -n "$upstream" ]]; then
+    ahead=$(git rev-list --count "@{u}..HEAD" 2>/dev/null || echo 0)
+    if [[ "$ahead" -gt 0 ]]; then
+      repo_lines+=("  ${MAG}↑ unpushed${RST}    ${ahead} commit(s) on ${branch} (-> ${upstream})")
+      unpushed=$((unpushed + 1))
+      repo_has_issue=1
+    fi
+  else
+    # No upstream: only complain if there are commits beyond the initial state
+    if git rev-parse HEAD >/dev/null 2>&1 && [[ "$(git rev-list --count HEAD)" -gt 0 ]]; then
+      repo_lines+=("  ${CYA}↯ no upstream${RST} ${branch} has no remote tracking branch")
+      no_upstream=$((no_upstream + 1))
+      repo_has_issue=1
+    fi
+  fi
+
+  if [[ $repo_has_issue -eq 1 ]]; then
+    printf "${BOLD}%s${RST}\n" "$display"
+    printf '%s\n' "${repo_lines[@]}"
+    echo
+  fi
+done
+
+clean=$((${#repos[@]} - dirty - unpushed - no_upstream))
+printf "${DIM}Scanned %d repo(s):${RST}\n" "${#repos[@]}"
+printf "  ${YEL}%d${RST} with uncommitted changes\n" "$dirty"
+printf "  ${MAG}%d${RST} with unpushed commits\n" "$unpushed"
+printf "  ${CYA}%d${RST} on a branch with no upstream\n" "$no_upstream"
+if [[ $dirty -eq 0 && $unpushed -eq 0 && $no_upstream -eq 0 ]]; then
+  printf "${GRN}All caught up. Have a good evening.${RST}\n"
+fi

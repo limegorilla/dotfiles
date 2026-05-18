@@ -1,17 +1,33 @@
+# Homebrew bundle file -- the single source of truth for installed apps and CLIs.
+#
+# Apply with `make brew` (or `brew bundle --file=Brewfile`).
+# Dump current state with `make brew-dump`.
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Taps
+# ---------------------------------------------------------------------------------------------------------------------
 tap "homebrew/bundle"
 tap "homebrew/services"
 tap "mongodb/brew"
+tap "oven-sh/bun"
 tap "planetscale/tap"
 tap "supabase/tap"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# CLI tools and language runtimes (brew)
+# ---------------------------------------------------------------------------------------------------------------------
+# Shell + dotfile management
+brew "bash"
 brew "bash-completion"
+brew "stow"
+
+# System utilities used by macOS setup scripts
+brew "gnu-sed"
+brew "gnupg"
+
+# Core CLI tooling
 brew "btop"
-brew "caddy"
-brew "chezmoi"
 brew "cloc"
-brew "cocoapods"
-brew "deno"
-brew "ffmpeg"
-brew "flyctl"
 brew "fzf"
 brew "gh"
 brew "git-delta"
@@ -21,32 +37,51 @@ brew "mactop"
 brew "mas"
 brew "minicom"
 brew "mkcert"
-brew "mysql-client"
 brew "neovim"
-brew "nvm"
-brew "pgsync"
-brew "python@3.13"
-brew "pipx"
-brew "pnpm"
-brew "postgresql@17"
 brew "pv"
-brew "python@3.12"
-brew "python@3.9"
 brew "ripgrep"
 brew "sherlock"
 brew "sniffnet"
 brew "sox"
 brew "testdisk"
 brew "tmux"
-brew "vercel-cli"
 brew "wakatime-cli"
 brew "wget"
 brew "yt-dlp"
 brew "zoxide"
-brew "mongodb/brew/mongodb-database-tools"
+
+# Web / cloud
+brew "caddy"
+brew "flyctl"
+brew "vercel-cli"
+
+# Media tooling
+brew "ffmpeg"
+
+# Mobile / iOS
+brew "cocoapods"
+
+# Language runtimes
+brew "deno"
+brew "node"
+brew "oven-sh/bun/bun"
+brew "pnpm"
+brew "python@3.9"
+brew "python@3.12"
+brew "python@3.13"
+
+# Databases
 brew "mongodb/brew/mongodb-community"
+brew "mongodb/brew/mongodb-database-tools"
+brew "mysql-client"
+brew "pgsync"
 brew "planetscale/tap/pscale"
+brew "postgresql@17"
 brew "supabase/tap/supabase"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# GUI applications (cask)
+# ---------------------------------------------------------------------------------------------------------------------
 cask "1password"
 cask "1password-cli"
 cask "android-platform-tools"
@@ -96,6 +131,11 @@ cask "whisky"
 cask "zed"
 cask "zen"
 cask "zulu@17"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Mac App Store (mas)
+# Requires being signed into the App Store before `brew bundle` runs.
+# ---------------------------------------------------------------------------------------------------------------------
 mas "1Password for Safari", id: 1569813296
 mas "AB Bounce", id: 6462195757
 mas "Albums", id: 1469948986
@@ -142,6 +182,10 @@ mas "Windows App", id: 1295203466
 mas "Wipr", id: 1662217862
 mas "WireGuard", id: 1451685025
 mas "Xcode - 15", id: 497799835
+
+# ---------------------------------------------------------------------------------------------------------------------
+# VS Code / Cursor extensions
+# ---------------------------------------------------------------------------------------------------------------------
 vscode "biomejs.biome"
 vscode "bradlc.vscode-tailwindcss"
 vscode "davidanson.vscode-markdownlint"
@@ -157,4 +201,8 @@ vscode "redhat.vscode-yaml"
 vscode "solomonkinard.git-blame"
 vscode "wakatime.vscode-wakatime"
 vscode "yoavbls.pretty-ts-errors"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Cargo crates (installed via cargo-bundle plugin)
+# ---------------------------------------------------------------------------------------------------------------------
 cargo "imessage-exporter"

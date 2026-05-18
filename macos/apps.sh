@@ -57,12 +57,12 @@ defaults write com.apple.Safari InstallExtensionUpdatesAutomatically -bool true
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Terminal.app
+# Configures defaults *without* launching Terminal (AppleScript would).
+# Ghostty is the primary terminal -- configure that separately if needed.
 # ---------------------------------------------------------------------------------------------------------------------
 defaults write com.apple.Terminal "Default Window Settings" -string Basic
 defaults write com.apple.Terminal "Startup Window Settings" -string Basic
 defaults write com.apple.terminal StringEncodings -array 4
-osascript -e 'tell application "Terminal" to set font name of settings set "Basic" to "MesloLGLNerdFontComplete-Regular"' >/dev/null 2>&1 || true
-osascript -e 'tell application "Terminal" to set font size of settings set "Basic" to 18' >/dev/null 2>&1 || true
 
 # Required so zsh completion doesn't complain about insecure directories
 if command -v brew >/dev/null; then

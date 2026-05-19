@@ -26,12 +26,13 @@ defaults write com.apple.dock show-recents -bool false
 clear_dock
 
 apps=(
-  '/System/Cryptexes/App/System/Applications/Safari.app'
-  '/Applications/Visual Studio Code.app'
+  '/Applications/Helium.app'
+  '/Applications/Zed.app'
   '/Applications/Ghostty.app'
   '/System/Applications/Mail.app'
   '/System/Applications/Calendar.app'
   '/System/Applications/Music.app'
+  '/Applications/1Password.app'
 )
 for app in "${apps[@]}"; do
   add_app_to_dock "$app"

@@ -12,20 +12,23 @@ Personal macOS configuration (Apple Silicon assumed): dotfiles, shell scripts, p
 4. **macOS-only.** No `if linux` branches. If support is ever added, split the Makefile and introduce a `linux/` tree — don't sprinkle conditionals.
 5. **`home/` is the only stow package and is stowed with `--no-folding`.** New dotfiles go under `home/` mirroring their `$HOME` path (e.g. `home/.config/foo/bar` → `~/.config/foo/bar`). `--no-folding` is deliberate so nested config directories aren't collapsed into a single symlink.
 6. **`bin/` is auto-prepended to `$PATH` by `.zshrc`.** New personal scripts go in `bin/`, with a shebang and executable bit set.
-7. **`make adopt` is the only sanctioned way to move existing `$HOME` files into the repo.** Review the diff afterwards — never `cp` from `$HOME` blindly, since adopted files may contain machine-specific or sensitive data.
+7. **`dotfiles adopt` is the only sanctioned way to bring an existing local resource into the repo.** Three modes: `--file` (stow-adopt `$HOME` files), `--brew` (track installed formulae/casks), `--mas` (track installed App Store apps). Review the resulting diff before committing — adopted files may contain machine-specific or sensitive data, and adopted Brewfile entries land in a flat `# Adopted` section that you may want to curate by hand.
 
 ## Language
 
 **Stow package**: the `home/` directory; what GNU Stow treats as a single unit to symlink. This repo has exactly one.
 _Avoid_: "stow directory", "stow target" (the target is `$HOME`).
 
-**Adopt**: `make adopt`; *moves* (not copies) existing `$HOME` files into `home/` and replaces them with symlinks. Destructive if not reviewed.
+**Adopt**: bring an existing local resource under the ownership of this repo, so it becomes governed by the dotfiles source of truth rather than living loose on the machine. Currently applies to two resource kinds:
+- **`$HOME` files** → `stow --adopt` *moves* the file into `home/` and replaces it with a symlink. Destructive if not reviewed.
+- **Installed brew/cask/mas apps** → appends a line to `Brewfile` so the app is tracked. Additive, non-destructive.
+The verb is the same because the intent is the same; only the mechanism differs by resource kind. See [ADR-0002](docs/adr/0002-unified-adopt-verb.md).
 
 **Bootstrap**: `scripts/bootstrap.sh`; installs Xcode Command Line Tools, Rosetta 2, and Homebrew. Runs first under `make install`.
 
 **Doctor**: `scripts/doctor.sh`; sanity-checks the local environment (warns if `op`, `stow`, `brew`, etc. are missing). Read-only; safe to run anywhere.
 
-**`dotfiles` alias**: loaded by `.zshrc`; runs `make -C $DOTFILES_DIR <target>` from any directory.
+**`dotfiles` alias**: loaded by `.zshrc`; points at `bin/dotfiles`. Handles the `adopt` subcommand directly and falls through to `make -C $DOTFILES_DIR <target>` for everything else, so existing make targets (`dotfiles update`, `dotfiles brew`, …) keep working.
 
 ## Pointers
 

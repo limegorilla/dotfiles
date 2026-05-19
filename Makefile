@@ -20,7 +20,7 @@ BOLD := \033[1m
 DIM  := \033[2m
 RST  := \033[0m
 
-.PHONY: help install update bootstrap brew brew-dump stow unstow restow adopt fonts macos dock apps scripts doctor clean-ds-store
+.PHONY: help install update bootstrap brew brew-dump stow unstow restow fonts macos dock apps scripts doctor clean-ds-store
 
 help: ## Show available targets
 	@printf "$(BOLD)Dotfiles targets$(RST)\n"
@@ -50,9 +50,6 @@ restow: ## Re-create symlinks (safe to repeat)
 
 unstow: ## Remove all dotfile symlinks from your home directory
 	stow --dir=$(DOTFILES_DIR) --target=$(TARGET_DIR) --no-folding --delete $(STOW_PACKAGE)
-
-adopt: ## Move existing home-dir files into the repo (use with care, review diff after)
-	stow --dir=$(DOTFILES_DIR) --target=$(TARGET_DIR) --no-folding --adopt $(STOW_PACKAGE)
 
 fonts: ## Install bundled fonts into ~/Library/Fonts
 	@mkdir -p "$(FONT_DEST_DIR)"

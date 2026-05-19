@@ -68,14 +68,34 @@ Run `make help` for the live list. Highlights:
 | `make brew-dump`| Overwrite Brewfile with current brew state (review!)     |
 | `make stow`     | Symlink `home/` into `$HOME`                             |
 | `make restow`   | Re-create symlinks (after pulling changes, for example)  |
-| `make adopt`    | Move existing `$HOME` files **into** the repo (careful)  |
 | `make fonts`    | Copy bundled fonts into `~/Library/Fonts`                |
 | `make macos`    | `defaults.sh` + `dock.sh`                                |
 | `make apps`     | `apps.sh`                                                |
 | `make doctor`   | Sanity-check the environment                             |
 
 Once `.zshrc` is sourced, the same targets are available via the `dotfiles`
-alias (e.g. `dotfiles update`, `dotfiles doctor`).
+alias (e.g. `dotfiles update`, `dotfiles doctor`), which also exposes the
+richer adopt subcommands below.
+
+## `dotfiles adopt`
+
+`dotfiles adopt` brings an existing local resource into this repo. The mode
+flag is required — there is no default — so the destructive file case can
+never run by accident.
+
+| Command                              | What it does                                                |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `dotfiles adopt --file`              | `stow --adopt` files from `$HOME` into `home/`              |
+| `dotfiles adopt --brew`              | Pick installed formulae/casks to track in the Brewfile      |
+| `dotfiles adopt --brew NAME`         | Install a formula (if needed) and track it                  |
+| `dotfiles adopt --brew --cask NAME`  | Same, for a cask                                            |
+| `dotfiles adopt --mas`               | Pick installed Mac App Store apps to track                  |
+| `dotfiles adopt --mas QUERY`         | Search the App Store, pick one, install + track             |
+
+Adopted Brewfile entries land in a flat `# Adopted` section at the end of the
+file. The script verifies the Brewfile with `brew bundle check` after every
+mutation and prompts you to commit (with a default `adopt:` message) before
+exiting.
 
 ## The `bin/` directory
 
@@ -109,5 +129,5 @@ If you already have a `~/.zshrc`, `~/.gitconfig`, etc., `make stow` will refuse
 to overwrite them. Two options:
 
 1. Back them up, delete them, and `make stow`.
-2. Run `make adopt` to **move** the existing files into `home/`, then review the
-   diff and reset anything you don't actually want to track.
+2. Run `dotfiles adopt --file` to **move** the existing files into `home/`,
+   then review the diff and reset anything you don't actually want to track.

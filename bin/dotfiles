@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+# dotfiles -- entry point for managing the dotfiles repo.
+#
+# Subcommands:
+#   adopt --file              Stow-adopt files from $HOME into home/.
+#   adopt --brew              Interactively pick installed formulae/casks to track.
+#   adopt --brew NAME         Install (if needed) + track a formula.
+#   adopt --brew --cask NAME  Install (if needed) + track a cask.
+#   adopt --mas               Interactively pick installed MAS apps to track.
+#   adopt --mas QUERY         Search MAS, pick one, install + track.
+#
+# Anything else is passed straight to `make` (e.g. `dotfiles update`, `dotfiles doctor`).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+BREWFILE="$DOTFILES_DIR/Brewfile"
+SELF="$SCRIPT_DIR/dotfiles"
+
+if [[ -t 1 ]]; then
+  BOLD=$'\e[1m'; DIM=$'\e[2m'; RST=$'\e[0m'
+  GRN=$'\e[32m'; RED=$'\e[31m'; YEL=$'\e[33m'
+else
+  BOLD=""; DIM=""; RST=""; GRN=""; RED=""; YEL=""
+fi
+
+die()  { printf "${RED}error:${RST} %s\n" "$*" >&2; exit 1; }
+info() { printf "%s\n" "$*"; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but not installed"; }
+
+# ---------------------------------------------------------------------------
+# Brewfile mutation
+# ---------------------------------------------------------------------------
+ADOPTED_HEADER="# Adopted"
+ADOPTED_RULE="# ---------------------------------------------------------------------------------------------------------------------"
+
+ensure_adopted_section() {
+  if ! grep -qxF "$ADOPTED_HEADER" "$BREWFILE"; then
+    printf "\n%s\n%s\n%s\n" "$ADOPTED_RULE" "$ADOPTED_HEADER" "$ADOPTED_RULE" >> "$BREWFILE"
+  fi
+}
+
+# Insert a line at the top of the Adopted section. Used for taps so they
+# precede the formulae that depend on them when `brew bundle` reads the file.
+adopted_prepend() {
+  local entry="$1"
+  ensure_adopted_section
+  local tmp; tmp=$(mktemp)
+  awk -v entry="$entry" -v header="$ADOPTED_HEADER" '
+    BEGIN { in_section=0; rules_after_header=0; inserted=0 }
+    {
+      print
+      if (!inserted) {
+        if ($0 == header) {
+          in_section=1
+        } else if (in_section && index($0, "# ----") == 1) {
+          rules_after_header++
+          if (rules_after_header == 1) {
+            print entry
+            inserted=1
+          }
+        }
+      }
+    }
+  ' "$BREWFILE" > "$tmp"
+  mv "$tmp" "$BREWFILE"
+}
+
+adopted_append() {
+  local entry="$1"
+  ensure_adopted_section
+  printf "%s\n" "$entry" >> "$BREWFILE"
+}
+
+# brewfile_has_entry KIND VALUE — returns 0 if Brewfile already tracks it.
+brewfile_has_entry() {
+  local kind="$1" needle="$2"
+  case "$kind" in
+    tap)  grep -qE "^tap \"$needle\"$" "$BREWFILE" ;;
+    brew) grep -qE "^brew \"([^\"]*/)?$needle\"" "$BREWFILE" ;;
+    cask) grep -qE "^cask \"$needle\"" "$BREWFILE" ;;
+    mas)  grep -qE "id: $needle$" "$BREWFILE" ;;
+    *)    return 1 ;;
+  esac
+}
+
+verify_brewfile_or_revert() {
+  printf "${DIM}Verifying Brewfile…${RST}\n"
+  local output
+  if ! output=$(brew bundle check --file="$BREWFILE" 2>&1); then
+    printf "${RED}Brewfile check failed; reverting.${RST}\n" >&2
+    printf "%s\n" "$output" >&2
+    git -C "$DOTFILES_DIR" checkout -- "$BREWFILE"
+    return 1
+  fi
+  printf "${GRN}✓${RST} ${DIM}Brewfile verified.${RST}\n"
+}
+
+# formula_tap NAME — prints the tap (e.g. "planetscale/tap") if the formula
+# lives outside homebrew/core. Empty otherwise.
+formula_tap() {
+  local name="$1" tap
+  tap=$(brew info --json=v2 --formula "$name" 2>/dev/null \
+        | grep -m1 '"tap":' \
+        | sed -E 's/.*"tap": *"([^"]+)".*/\1/' || true)
+  case "$tap" in
+    ""|homebrew/core) ;;
+    *) printf "%s" "$tap" ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Listings (also exposed as hidden subcommands for fzf --bind reload)
+# ---------------------------------------------------------------------------
+
+# list_untracked_brew [with-taps] — tab-separated "<kind>\t<value>" rows.
+list_untracked_brew() {
+  local include_taps=0
+  [[ "${1:-}" == "with-taps" ]] && include_taps=1
+
+  if [[ $include_taps -eq 1 ]]; then
+    while IFS= read -r t; do
+      [[ -z "$t" ]] && continue
+      brewfile_has_entry tap "$t" || printf "tap\t%s\n" "$t"
+    done < <(brew tap 2>/dev/null || true)
+  fi
+
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    brewfile_has_entry brew "$f" || printf "formula\t%s\n" "$f"
+  done < <(brew leaves 2>/dev/null || true)
+
+  while IFS= read -r c; do
+    [[ -z "$c" ]] && continue
+    brewfile_has_entry cask "$c" || printf "cask\t%s\n" "$c"
+  done < <(brew list --cask 2>/dev/null || true)
+}
+
+# list_untracked_mas — tab-separated "<id>\t<name>" rows.
+list_untracked_mas() {
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local id name
+    id=$(awk '{print $1}' <<< "$line")
+    name=$(sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//; s/[[:space:]]+\([^)]*\)$//' <<< "$line")
+    brewfile_has_entry mas "$id" || printf "%s\t%s\n" "$id" "$name"
+  done < <(mas list 2>/dev/null | sort -k2 || true)
+}
+
+# ---------------------------------------------------------------------------
+# Commit prompt
+# ---------------------------------------------------------------------------
+commit_prompt() {
+  local msg="$1"; shift
+  cd "$DOTFILES_DIR"
+
+  git add -- "$@" 2>/dev/null || true
+
+  if git diff --cached --quiet -- "$@"; then
+    return 0
+  fi
+
+  printf "\n${BOLD}Changes:${RST}\n"
+  git --no-pager diff --cached --stat -- "$@"
+  printf "\n${DIM}─── diff ───${RST}\n"
+  git --no-pager diff --cached -- "$@"
+  printf "${DIM}─────────────${RST}\n\n"
+
+  printf "Proposed commit: ${BOLD}%s${RST}\n\n" "$msg"
+
+  local choice
+  while true; do
+    printf "Commit? ${BOLD}[Y]es${RST} / ${BOLD}[n]o, leave staged${RST} / ${BOLD}[e]dit message${RST} › "
+    read -r choice || choice="n"
+    case "$(printf '%s' "$choice" | tr '[:upper:]' '[:lower:]')" in
+      y|"") git commit -m "$msg"; return 0 ;;
+      n)    printf "${DIM}Leaving changes staged.${RST}\n"; return 0 ;;
+      e)    git commit -e -m "$msg"; return 0 ;;
+      *)    printf "Pick Y, n, or e.\n" ;;
+    esac
+  done
+}
+
+# ---------------------------------------------------------------------------
+# adopt --file
+# ---------------------------------------------------------------------------
+adopt_file() {
+  [[ $# -gt 0 ]] && die "adopt --file takes no arguments"
+  need stow
+  stow --dir="$DOTFILES_DIR" --target="$HOME" --no-folding --adopt home
+  commit_prompt 'adopt: stow $HOME files' "home"
+}
+
+# ---------------------------------------------------------------------------
+# adopt --brew
+# ---------------------------------------------------------------------------
+adopt_brew() {
+  local cask=0 name=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --cask) cask=1 ;;
+      --)     shift; name="${1:-}"; break ;;
+      -*)     die "adopt --brew: unknown flag '$1'" ;;
+      *)
+        [[ -n "$name" ]] && die "adopt --brew: only one NAME allowed (got '$name' and '$1')"
+        name="$1"
+        ;;
+    esac
+    shift
+  done
+
+  if [[ -n "$name" ]]; then
+    adopt_brew_targeted "$name" "$cask"
+  else
+    [[ $cask -eq 1 ]] && die "adopt --brew: --cask only meaningful with NAME"
+    adopt_brew_picker
+  fi
+}
+
+adopt_brew_picker() {
+  need brew; need fzf
+
+  local picked
+  picked=$("$SELF" _untracked-brew \
+    | fzf --multi \
+          --with-nth=1,2 \
+          --delimiter=$'\t' \
+          --header $'tab: select  ·  enter: confirm  ·  t: include taps' \
+          --bind "t:reload($SELF _untracked-brew with-taps)" \
+          --prompt "Adopt brew › ") || { info "Nothing selected."; return 0; }
+
+  [[ -z "$picked" ]] && { info "Nothing selected."; return 0; }
+
+  local count=0 kind value
+  while IFS=$'\t' read -r kind value; do
+    [[ -z "$kind" ]] && continue
+    case "$kind" in
+      formula)
+        local tap; tap="$(formula_tap "$value")"
+        if [[ -n "$tap" ]] && ! brewfile_has_entry tap "$tap"; then
+          adopted_prepend "tap \"$tap\""
+        fi
+        adopted_append "brew \"$value\""; count=$((count+1)) ;;
+      cask)    adopted_append "cask \"$value\""; count=$((count+1)) ;;
+      tap)     adopted_prepend "tap \"$value\"";  count=$((count+1)) ;;
+    esac
+  done <<< "$picked"
+
+  [[ $count -eq 0 ]] && { info "Nothing selected."; return 0; }
+
+  verify_brewfile_or_revert || return 1
+
+  local msg
+  if [[ $count -eq 1 ]]; then
+    msg="adopt: track $count brew entry"
+  else
+    msg="adopt: track $count brew entries"
+  fi
+  commit_prompt "$msg" "Brewfile"
+}
+
+adopt_brew_targeted() {
+  local name="$1" cask_flag="$2"
+  need brew
+
+  # Detect current local state before deciding anything. `brew install` may
+  # auto-fall-back from formula → cask, so we trust what's actually installed
+  # over the user's --cask intent.
+  local installed_as=""
+  if brew list --formula 2>/dev/null | grep -qx "$name"; then
+    installed_as="formula"
+  elif brew list --cask 2>/dev/null | grep -qx "$name"; then
+    installed_as="cask"
+  fi
+
+  if [[ -z "$installed_as" ]]; then
+    info "Installing ${name}…"
+    if [[ $cask_flag -eq 1 ]]; then
+      brew install --cask "$name" || die "brew install --cask $name failed"
+    else
+      brew install "$name" || die "brew install $name failed"
+    fi
+    if brew list --formula 2>/dev/null | grep -qx "$name"; then
+      installed_as="formula"
+    elif brew list --cask 2>/dev/null | grep -qx "$name"; then
+      installed_as="cask"
+    else
+      die "$name doesn't appear installed after brew install"
+    fi
+  else
+    info "Already installed: $name (as $installed_as)"
+  fi
+
+  if [[ $cask_flag -eq 1 && "$installed_as" == "formula" ]]; then
+    die "--cask specified but $name is installed as a formula"
+  fi
+
+  local kind="brew"; [[ "$installed_as" == "cask" ]] && kind="cask"
+  if brewfile_has_entry "$kind" "$name"; then
+    info "Already tracked: $name"
+    return 0
+  fi
+
+  local msg
+  if [[ "$installed_as" == "cask" ]]; then
+    adopted_append "cask \"$name\""
+    msg="adopt: track $name (cask)"
+  else
+    local tap
+    tap="$(formula_tap "$name")"
+    if [[ -n "$tap" ]] && ! brewfile_has_entry tap "$tap"; then
+      adopted_prepend "tap \"$tap\""
+    fi
+    adopted_append "brew \"$name\""
+    msg="adopt: track $name"
+  fi
+
+  verify_brewfile_or_revert || return 1
+  commit_prompt "$msg" "Brewfile"
+}
+
+# ---------------------------------------------------------------------------
+# adopt --mas
+# ---------------------------------------------------------------------------
+adopt_mas() {
+  need mas
+  if [[ $# -eq 0 ]]; then
+    adopt_mas_picker
+  else
+    adopt_mas_search "$*"
+  fi
+}
+
+adopt_mas_picker() {
+  need fzf
+
+  local picked
+  picked=$("$SELF" _untracked-mas \
+    | fzf --multi \
+          --with-nth=2 \
+          --delimiter=$'\t' \
+          --prompt "Adopt MAS › ") || { info "Nothing selected."; return 0; }
+
+  [[ -z "$picked" ]] && { info "Nothing selected."; return 0; }
+
+  local count=0 id name
+  while IFS=$'\t' read -r id name; do
+    [[ -z "$id" ]] && continue
+    adopted_append "mas \"$name\", id: $id"
+    count=$((count+1))
+  done <<< "$picked"
+
+  [[ $count -eq 0 ]] && { info "Nothing selected."; return 0; }
+
+  verify_brewfile_or_revert || return 1
+
+  local msg
+  if [[ $count -eq 1 ]]; then
+    msg="adopt: track $count MAS app"
+  else
+    msg="adopt: track $count MAS apps"
+  fi
+  commit_prompt "$msg" "Brewfile"
+}
+
+adopt_mas_search() {
+  local query="$1"
+  need fzf
+
+  local results
+  results=$(mas search "$query" 2>/dev/null || true)
+  [[ -z "$results" ]] && die "No MAS hits for '$query'."
+
+  local picked
+  picked=$(printf "%s\n" "$results" | fzf --prompt "MAS: $query › ") \
+    || { info "Cancelled."; return 0; }
+  [[ -z "$picked" ]] && { info "Cancelled."; return 0; }
+
+  local id name
+  id=$(awk '{print $1}' <<< "$picked")
+  name=$(sed -E 's/^[0-9]+[[:space:]]+//; s/[[:space:]]+\([^)]*\)$//' <<< "$picked")
+  [[ -z "$id" || -z "$name" ]] && die "Couldn't parse selection: $picked"
+
+  if brewfile_has_entry mas "$id"; then
+    info "Already tracked: $name (id $id)"
+    return 0
+  fi
+
+  info "Installing $name (id $id)…"
+  mas install "$id" || die "mas install $id failed"
+
+  adopted_append "mas \"$name\", id: $id"
+  verify_brewfile_or_revert || return 1
+  commit_prompt "adopt: track \"$name\" (mas)" "Brewfile"
+}
+
+# ---------------------------------------------------------------------------
+# adopt dispatch
+# ---------------------------------------------------------------------------
+cmd_adopt() {
+  case "${1:-}" in
+    --file) shift; adopt_file "$@" ;;
+    --brew) shift; adopt_brew "$@" ;;
+    --mas)  shift; adopt_mas  "$@" ;;
+    -h|--help)
+      cat <<'EOF'
+Usage:
+  dotfiles adopt --file              Stow-adopt files from $HOME into home/.
+  dotfiles adopt --brew              Pick installed formulae/casks to track.
+  dotfiles adopt --brew NAME         Install + track a formula.
+  dotfiles adopt --brew --cask NAME  Install + track a cask.
+  dotfiles adopt --mas               Pick installed MAS apps to track.
+  dotfiles adopt --mas QUERY         Search MAS, pick one, install + track.
+EOF
+      exit 0 ;;
+    "")  die "adopt requires a mode: --file, --brew, or --mas" ;;
+    *)   die "adopt: unknown flag '$1'. Use --file, --brew, or --mas." ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# top-level dispatch
+# ---------------------------------------------------------------------------
+cmd_help() {
+  cat <<EOF
+${BOLD}dotfiles${RST} — manage the dotfiles repo.
+
+Usage:
+  dotfiles adopt --file              Stow-adopt files from \$HOME.
+  dotfiles adopt --brew [NAME]       Track installed brew formulae/casks.
+  dotfiles adopt --brew --cask NAME  Track an installed cask.
+  dotfiles adopt --mas [QUERY]       Track installed MAS apps (with optional search).
+  dotfiles <make-target>             Any other arg is passed to make.
+
+Run \`make -C "$DOTFILES_DIR" help\` to see all make targets.
+EOF
+}
+
+case "${1:-}" in
+  _untracked-brew) shift; list_untracked_brew "$@"; exit 0 ;;
+  _untracked-mas)  shift; list_untracked_mas;       exit 0 ;;
+  adopt)           shift; cmd_adopt "$@" ;;
+  ""|-h|--help|help) cmd_help; exit 0 ;;
+  *) exec make -C "$DOTFILES_DIR" "$@" ;;
+esac

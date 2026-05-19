@@ -94,7 +94,7 @@ alias c='clear'
 alias ssh='TERM_SIMPLE=1 ssh'
 
 # Manage the dotfiles repo from anywhere: `dotfiles update`, `dotfiles brew`, etc.
-alias dotfiles="make -C $DOTFILES_DIR"
+alias dotfiles="$DOTFILES_DIR/bin/dotfiles"
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Shell integrations
@@ -122,3 +122,8 @@ export BUN_INSTALL="$HOME/.bun"
 # Extra PATH entries (Postgres@17, LM Studio, Bun)
 # ---------------------------------------------------------------------------------------------------------------------
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH:$HOME/.lmstudio/bin:$BUN_INSTALL/bin"
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Completions
+# ---------------------------------------------------------------------------------------------------------------------
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi # Mole CLI

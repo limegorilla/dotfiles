@@ -154,3 +154,6 @@ tap "anomalyco/tap"
 brew "mole"
 cask "linear"
 brew "anomalyco/tap/opencode"
+mas "Logic Pro", id: 634148309
+mas "Swift Playground", id: 1496833156
+mas "Microsoft PowerPoint", id: 462062816
